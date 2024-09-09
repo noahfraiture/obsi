@@ -4,6 +4,7 @@ use std::{
 };
 
 mod lexer;
+mod parser;
 
 use lexer::Lexer;
 

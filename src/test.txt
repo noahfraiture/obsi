@@ -1,2 +1,0 @@
-8F ident = 2 + 2;
-num8num/*f8

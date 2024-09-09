@@ -1,25 +1,29 @@
 #![allow(dead_code)]
 
+use core::panic;
+
 #[derive(Debug)]
 pub enum Token {
-    Ident(String),
-    Int(i64),
-    Float(f64), // NOTE : could probably be removed if we work with byte only
-    LBracket,
-    RBracket,
-    LParenth,
-    RParenth,
-    Plus,
-    Dash,
-    Slash,
-    Modulo,
-    Assign,
-    Asterix,
-    Semicolon,
-    DoubleQuote,
-    Equal,
-    Bang,
-    Less, // all other comparator can be made from this
+    Ident(String), // foo
+    Int(i64),      // 3.4, 1A
+    Float(f64),    // NOTE : could probably be removed if we work with byte only
+    LParenth,      // (
+    RParenth,      // )
+    LBrace,        // {
+    RBrace,        // }
+    Plus,          // +
+    Dash,          // -
+    Slash,         // /
+    Modulo,        // %
+    Asterix,       // *
+    Equal,         // ==
+    Bang,          // ! for now
+    Less,          // < all comparison can be made with this and equal
+    Colon,         // : used in true ? true : false
+    Question,      // ? used in true ? true : false
+    // TODO: add loop
+    At,    // @ declare a function
+    Tilde, // ~ return a value
 }
 
 pub struct Lexer<'a> {
@@ -54,25 +58,28 @@ impl<'a> Lexer<'a> {
             'a'..='z' => self.parse_ident(),
             '(' => Some(Token::LParenth),
             ')' => Some(Token::RParenth),
-            '{' => Some(Token::LBracket),
-            '}' => Some(Token::RBracket),
             '+' => Some(Token::Plus),
             '-' => Some(Token::Dash),
             '/' => Some(Token::Slash),
             '%' => Some(Token::Modulo),
             '*' => Some(Token::Asterix),
-            ';' => Some(Token::Semicolon),
             '=' => {
                 if let Some('=') = self.peak_char() {
                     self.next_char();
                     Some(Token::Equal)
                 } else {
-                    Some(Token::Assign)
+                    // we don't use an assign to assign a value
+                    panic!("Unexpected character {:?}", self.current.unwrap())
                 }
             }
             '!' => Some(Token::Bang),
             '<' => Some(Token::Less),
-            '"' => Some(Token::DoubleQuote),
+            ':' => Some(Token::Colon),
+            '?' => Some(Token::Question),
+            '@' => Some(Token::At),
+            '~' => Some(Token::Tilde),
+            '{' => Some(Token::LBrace),
+            '}' => Some(Token::RBrace),
             '\n' | '\r' | '\t' => self.next_token(),
             _ => panic!("Unexpected character {:?}", self.current.unwrap()),
         };
