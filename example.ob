@@ -1,0 +1,9 @@
+@4 addfive 4 a 4 b {
+	4 five # declare variable 'five' for 4 bytes
+	4 c
+	4 d
+	five 5 # assign '5' to 'five'
+	c a + b
+	d c + 5
+	~ d
+}

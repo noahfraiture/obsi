@@ -1,7 +1,9 @@
 use crate::lexer::Token;
 
+#[derive(Debug, PartialEq)]
 pub struct Program(pub Vec<Stmt>);
 
+#[derive(Debug, PartialEq)]
 pub enum Stmt {
     Declare(i8, String),                                // <size> <ident>
     Assignment(String, Expr),                           // <ident> <expr>
@@ -9,8 +11,10 @@ pub enum Stmt {
     Function(i8, String, Vec<(i8, String)>, Box<Stmt>), // <size> <ident> <args>* <body>
     Return(Expr),                                       // <expr>
     BlockStatement(Vec<Stmt>),                          // <stmt>*
+    If(Expr, Box<Stmt>, Option<Box<Stmt>>),             // <condition> <then> <else>?
 }
 
+#[derive(Debug, PartialEq)]
 pub enum Expr {
     Literal(Literal),                      // <literal>
     Variable(String),                      // <ident>
@@ -19,12 +23,13 @@ pub enum Expr {
     Call(Box<Expr>, Vec<Expr>),            // <expr> <expr>* == <function> <args>*
 }
 
+#[derive(Debug, PartialEq)]
 pub enum Literal {
     Int(i64),
     Float(f64),
-    String(String),
 }
 
+#[derive(Debug, PartialEq)]
 pub enum BinOp {
     Add,
     Sub,
@@ -58,7 +63,7 @@ impl Precedence {
             Token::Equal => Self::Equals,
             Token::Bang => Self::Prefix,
             Token::Less => Self::Less,
-            _ => panic!("Unknown precedence"),
+            _ => Self::Lowest,
         }
     }
 }

@@ -22,14 +22,26 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Get the next token and consume it
     fn next_token(&mut self) -> &mut Option<Token> {
         self.current = self.next.take();
         self.next = self.lexer.next_token();
         &mut self.current
     }
 
+    /// Get the next token without consuming it
     fn peak_token(&mut self) -> &mut Option<Token> {
         &mut self.next
+    }
+
+    /// Consume the next token if it match the expected token
+    fn check_next(&mut self, token: Token) -> bool {
+        if self.peak_token().as_ref().unwrap() == &token {
+            self.next_token();
+            true
+        } else {
+            false
+        }
     }
 
     pub fn parse(&mut self) -> Program {
@@ -45,6 +57,8 @@ impl<'a> Parser<'a> {
             Token::Ident(_) => self.parse_stmt_assign(),
             Token::Int(_) => self.parse_stmt_declare(),
             Token::At => self.parse_stmt_func(),
+            Token::Tilde => self.parse_stmt_return(),
+            Token::Question => self.parse_stmt_if(),
             Token::Bang
             | Token::Float(_)
             | Token::LParenth
@@ -55,10 +69,9 @@ impl<'a> Parser<'a> {
             | Token::Modulo
             | Token::Asterix
             | Token::Equal
-            | Token::Less
-            | Token::Colon
-            | Token::Question
-            | Token::Tilde => panic!("Unexpected token {:?}", self.peak_token().as_ref().unwrap()),
+            | Token::Less => {
+                panic!("Unexpected token {:?}", self.peak_token().as_ref().unwrap())
+            }
             Token::LBrace => todo!(), // TODO : block statement
             Token::RBrace => todo!(),
         }
@@ -94,22 +107,18 @@ impl<'a> Parser<'a> {
             (Token::Int(size), Token::Ident(name)) => {
                 // parse function arguments
                 let mut args = Vec::new();
-                while let (Token::Int(arg_size), Token::Ident(arg_name)) = (
-                    self.next_token().take().unwrap(),
-                    self.next_token().take().unwrap(),
-                ) {
-                    args.push((arg_size as i8, arg_name));
+                while !self.check_next(Token::LBrace) {
+                    match (
+                        self.next_token().take().unwrap(),
+                        self.next_token().take().unwrap(),
+                    ) {
+                        (Token::Int(arg_size), Token::Ident(arg_name)) => {
+                            args.push((arg_size as i8, arg_name))
+                        }
+                        (size, name) => panic!("Expected size and name, got {name:?} and {size:?}"),
+                    }
                 }
 
-                // consume '{'
-                if let Token::LBrace = self.next_token().as_ref().unwrap() {
-                    self.next_token();
-                } else {
-                    panic!(
-                        "Expected '{{', got {:?}",
-                        self.peak_token().as_ref().unwrap()
-                    );
-                }
                 Stmt::Function(size as i8, name, args, Box::new(self.parse_stmt_block()))
             }
             (size, name) => panic!("Excepted size and name, got {name:?} and {size:?}"),
@@ -118,18 +127,37 @@ impl<'a> Parser<'a> {
 
     fn parse_stmt_block(&mut self) -> Stmt {
         let mut statements = Vec::new();
-        while let Some(token) = self.peak_token() {
-            match token {
-                Token::RParenth => {
-                    self.next_token();
-                    break;
-                }
-                _ => {
-                    statements.push(self.parse_stmt());
-                }
-            };
+        while self.peak_token().is_some() {
+            if self.check_next(Token::RBrace) {
+                break;
+            }
+            statements.push(self.parse_stmt());
         }
         Stmt::BlockStatement(statements)
+    }
+
+    fn parse_stmt_if(&mut self) -> Stmt {
+        self.next_token(); // consume '?'
+        let condition = self.parse_expr(Precedence::Lowest);
+
+        if !self.check_next(Token::LBrace) {
+            panic!("Expected '{{', got {:?}", self.peak_token());
+        }
+
+        let consequence = self.parse_stmt_block();
+
+        let alternative = if self.check_next(Token::LBrace) {
+            Some(self.parse_stmt_block())
+        } else {
+            None
+        };
+
+        Stmt::If(condition, Box::new(consequence), alternative.map(Box::new))
+    }
+
+    fn parse_stmt_return(&mut self) -> Stmt {
+        self.next_token();
+        Stmt::Return(self.parse_expr(Precedence::Lowest))
     }
 
     fn parse_stmt_expr(&mut self) -> Stmt {
@@ -155,13 +183,13 @@ impl<'a> Parser<'a> {
         match self.next_token().take().unwrap() {
             Token::Ident(ident) => Expr::Variable(ident),
             Token::Int(value) => Expr::Literal(Literal::Int(value)),
-            Token::At => todo!(),
             Token::Bang => Expr::Not(Box::new(
                 self.parse_expr(Precedence::from_token(&Token::Bang)),
             )),
             Token::Float(value) => Expr::Literal(Literal::Float(value)),
             Token::LParenth => self.parse_expr(Precedence::Lowest),
             Token::RParenth => todo!(),
+            Token::At => todo!(),
             Token::Plus => todo!(),
             Token::Dash => todo!(),
             Token::Slash => todo!(),
@@ -169,7 +197,6 @@ impl<'a> Parser<'a> {
             Token::Asterix => todo!(),
             Token::Equal => todo!(),
             Token::Less => todo!(),
-            Token::Colon => todo!(),
             Token::Question => todo!(),
             Token::Tilde => todo!(),
             Token::LBrace => todo!(),
@@ -187,13 +214,6 @@ impl<'a> Parser<'a> {
 
     fn parse_expr_infix(&mut self, left: Expr) -> (Expr, bool) {
         match self.next_token().as_ref().unwrap() {
-            Token::Ident(_) => todo!(),
-            Token::Int(_) => todo!(),
-            Token::At => todo!(),
-            Token::Bang => todo!(),
-            Token::Float(_) => todo!(),
-            Token::LParenth => (self.parse_expr_call(left), true),
-            Token::RParenth => todo!(),
             Token::Plus => (
                 Expr::BinaryOp(
                     Box::new(left),
@@ -250,12 +270,17 @@ impl<'a> Parser<'a> {
                 ),
                 true,
             ),
-            Token::Colon => todo!(),
-            Token::Question => todo!(),
-            Token::Tilde => todo!(),
-            Token::LBrace => todo!(),
-            Token::RBrace => todo!(),
-            // _ => (left, false),
+            Token::LParenth => (self.parse_expr_call(left), true),
+            Token::RParenth
+            | Token::Ident(_)
+            | Token::Int(_)
+            | Token::At
+            | Token::Bang
+            | Token::Float(_)
+            | Token::Question
+            | Token::Tilde
+            | Token::LBrace
+            | Token::RBrace => (left, false),
         }
     }
 
@@ -265,5 +290,81 @@ impl<'a> Parser<'a> {
 
     fn parse_expr_args(&mut self) -> Vec<Expr> {
         todo!()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_compute() {
+        let input = r#"
+@4 compute 4 a 4 b {
+    4 five 
+    4 c
+    4 d
+    five 5 
+    c a + b 
+    ? b < 5 {
+        d a + 5
+    } {
+        d a - 5
+    }
+    ~ d
+}"#;
+
+        // Expected parsed program representation
+        let expected_program = Program(vec![Stmt::Function(
+            4,
+            "compute".to_string(),
+            vec![(4, "a".to_string()), (4, "b".to_string())],
+            Box::new(Stmt::BlockStatement(vec![
+                Stmt::Declare(4, "five".to_string()),
+                Stmt::Declare(4, "c".to_string()),
+                Stmt::Declare(4, "d".to_string()),
+                Stmt::Assignment("five".to_string(), Expr::Literal(Literal::Int(5))),
+                Stmt::Assignment(
+                    "c".to_string(),
+                    Expr::BinaryOp(
+                        Box::new(Expr::Variable("a".to_string())),
+                        BinOp::Add,
+                        Box::new(Expr::Variable("b".to_string())),
+                    ),
+                ),
+                Stmt::If(
+                    Expr::BinaryOp(
+                        Box::new(Expr::Variable("b".to_string())),
+                        BinOp::Less,
+                        Box::new(Expr::Literal(Literal::Int(5))),
+                    ),
+                    Box::new(Stmt::BlockStatement(vec![Stmt::Assignment(
+                        "d".to_string(),
+                        Expr::BinaryOp(
+                            Box::new(Expr::Variable("a".to_string())),
+                            BinOp::Add,
+                            Box::new(Expr::Literal(Literal::Int(5))),
+                        ),
+                    )])),
+                    Some(Box::new(Stmt::BlockStatement(vec![Stmt::Assignment(
+                        "d".to_string(),
+                        Expr::BinaryOp(
+                            Box::new(Expr::Variable("a".to_string())),
+                            BinOp::Sub,
+                            Box::new(Expr::Literal(Literal::Int(5))),
+                        ),
+                    )]))),
+                ),
+                Stmt::Return(Expr::Variable("d".to_string())),
+            ])),
+        )]);
+
+        // Use lexer and parser to parse the input string into an actual program
+        let lexer = Lexer::new(input.chars());
+        let mut parser = Parser::new(lexer);
+        let parsed_program = parser.parse();
+
+        // Assert that the parsed program matches the expected program representation
+        assert_eq!(parsed_program, expected_program);
     }
 }

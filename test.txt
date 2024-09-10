@@ -1,7 +1,0 @@
-@4 addfive 4 a 4 b {
-	4 five // declare variable 'five' for 4 bytes
-	five 5 // assign '5' to 'five'
-	a a + b
-	a a + 5
-	~ a
-}

@@ -2,7 +2,7 @@
 
 use core::panic;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Token {
     Ident(String), // foo
     Int(i64),      // 3.4, 1A
@@ -19,8 +19,7 @@ pub enum Token {
     Equal,         // ==
     Bang,          // ! for now
     Less,          // < all comparison can be made with this and equal
-    Colon,         // : used in true ? true : false
-    Question,      // ? used in true ? true : false
+    Question,      // ? used in '? condition { print(true) } { print(false) }'
     // TODO: add loop
     At,    // @ declare a function
     Tilde, // ~ return a value
@@ -53,16 +52,37 @@ impl<'a> Lexer<'a> {
 
     /// Give the token starting at next char. End on the final char of the token
     pub fn next_token(&mut self) -> Option<Token> {
-        let token = match self.peak_char()? {
+        match self.peak_char()? {
             '1'..='9' | 'A'..='F' => self.parse_number(),
             'a'..='z' => self.parse_ident(),
-            '(' => Some(Token::LParenth),
-            ')' => Some(Token::RParenth),
-            '+' => Some(Token::Plus),
-            '-' => Some(Token::Dash),
-            '/' => Some(Token::Slash),
-            '%' => Some(Token::Modulo),
-            '*' => Some(Token::Asterix),
+            '(' => {
+                self.next_char();
+                Some(Token::LParenth)
+            }
+            ')' => {
+                self.next_char();
+                Some(Token::RParenth)
+            }
+            '+' => {
+                self.next_char();
+                Some(Token::Plus)
+            }
+            '-' => {
+                self.next_char();
+                Some(Token::Dash)
+            }
+            '/' => {
+                self.next_char();
+                Some(Token::Slash)
+            }
+            '%' => {
+                self.next_char();
+                Some(Token::Modulo)
+            }
+            '*' => {
+                self.next_char();
+                Some(Token::Asterix)
+            }
             '=' => {
                 if let Some('=') = self.peak_char() {
                     self.next_char();
@@ -72,19 +92,40 @@ impl<'a> Lexer<'a> {
                     panic!("Unexpected character {:?}", self.current.unwrap())
                 }
             }
-            '!' => Some(Token::Bang),
-            '<' => Some(Token::Less),
-            ':' => Some(Token::Colon),
-            '?' => Some(Token::Question),
-            '@' => Some(Token::At),
-            '~' => Some(Token::Tilde),
-            '{' => Some(Token::LBrace),
-            '}' => Some(Token::RBrace),
-            '\n' | '\r' | '\t' => self.next_token(),
+            '!' => {
+                self.next_char();
+                Some(Token::Bang)
+            }
+            '<' => {
+                self.next_char();
+                Some(Token::Less)
+            }
+            '?' => {
+                self.next_char();
+                Some(Token::Question)
+            }
+            '@' => {
+                self.next_char();
+                Some(Token::At)
+            }
+            '~' => {
+                self.next_char();
+                Some(Token::Tilde)
+            }
+            '{' => {
+                self.next_char();
+                Some(Token::LBrace)
+            }
+            '}' => {
+                self.next_char();
+                Some(Token::RBrace)
+            }
+            ' ' | '\t' | '\n' | '\r' => {
+                self.next_char();
+                self.next_token()
+            }
             _ => panic!("Unexpected character {:?}", self.current.unwrap()),
-        };
-        self.next_char();
-        token
+        }
     }
 
     pub fn peak_token(&mut self) -> Option<Token> {
@@ -134,5 +175,75 @@ impl<'a> Lexer<'a> {
             }
         }
         Some(Token::Ident(ident))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_compute() {
+        let input = r#"
+@4 compute 4 a 4 b {
+    4 five 
+    4 c
+    4 d
+    five 5 
+    c a + b 
+    ? b < 5 {
+        d a + 5
+    } {
+        d a - 5
+    }
+    ~ d
+}"#;
+        let mut lexer = Lexer::new(input.chars());
+
+        let expected_tokens = vec![
+            Token::At,
+            Token::Int(4),
+            Token::Ident("compute".to_string()),
+            Token::Int(4),
+            Token::Ident("a".to_string()),
+            Token::Int(4),
+            Token::Ident("b".to_string()),
+            Token::LBrace,
+            Token::Int(4),
+            Token::Ident("five".to_string()),
+            Token::Int(4),
+            Token::Ident("c".to_string()),
+            Token::Int(4),
+            Token::Ident("d".to_string()),
+            Token::Ident("five".to_string()),
+            Token::Int(5),
+            Token::Ident("c".to_string()),
+            Token::Ident("a".to_string()),
+            Token::Plus,
+            Token::Ident("b".to_string()),
+            Token::Question,
+            Token::Ident("b".to_string()),
+            Token::Less,
+            Token::Int(5),
+            Token::LBrace,
+            Token::Ident("d".to_string()),
+            Token::Ident("a".to_string()),
+            Token::Plus,
+            Token::Int(5),
+            Token::RBrace,
+            Token::LBrace,
+            Token::Ident("d".to_string()),
+            Token::Ident("a".to_string()),
+            Token::Dash,
+            Token::Int(5),
+            Token::RBrace,
+            Token::Tilde,
+            Token::Ident("d".to_string()),
+            Token::RBrace,
+        ];
+
+        for expected_token in expected_tokens {
+            assert_eq!(lexer.next_token().unwrap(), expected_token);
+        }
     }
 }
