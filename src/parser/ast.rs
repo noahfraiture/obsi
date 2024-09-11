@@ -51,8 +51,8 @@ pub enum Precedence {
     Call,
 }
 
-impl Precedence {
-    pub fn from_token(token: &Token) -> Precedence {
+impl From<&Token> for Precedence { // Use the Rust tooling for this kind of thing
+    fn from(token: &Token) -> Self {
         match token {
             Token::LParenth => Self::Call,
             Token::Plus => Self::Sum,
