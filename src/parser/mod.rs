@@ -13,7 +13,7 @@ pub struct Parser<'a> {
     lexer: Lexer<'a>,
 }
 
-impl<'a> Parser<'a> {
+impl<'a> Parser<'a> { // Could also implement Iterator to be able to use standard iterator functions and maps
     pub fn new(mut lexer: Lexer<'a>) -> Self {
         Parser {
             current: None,
@@ -34,9 +34,9 @@ impl<'a> Parser<'a> {
         &mut self.next
     }
 
-    /// Consume the next token if it match the expected token
+    /// Consume the next token if it matches the expected token
     fn check_next(&mut self, token: Token) -> bool {
-        if self.peak_token().as_ref().unwrap() == &token {
+        if self.peak_token().as_ref() == Some(&token) {
             self.next_token();
             true
         } else {
@@ -45,6 +45,7 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse(&mut self) -> Program {
+        // TODO: This is not terrible. Instead your lexer should implement iterator so this can just be a map operation
         let mut statements = vec![];
         while self.lexer.has_next() {
             statements.push(self.parse_stmt());
@@ -53,7 +54,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_stmt(&mut self) -> Stmt {
-        match self.peak_token().as_ref().unwrap() {
+        match self.peak_token().as_ref().unwrap() { // Try to avoid unwrap. It creates panic without any context
             Token::Ident(_) => self.parse_stmt_assign(),
             Token::Int(_) => self.parse_stmt_declare(),
             Token::At => self.parse_stmt_func(),
@@ -121,6 +122,7 @@ impl<'a> Parser<'a> {
 
                 Stmt::Function(size as i8, name, args, Box::new(self.parse_stmt_block()))
             }
+            // TODO: Okish to compile during compilation but should have a dedicated system for this
             (size, name) => panic!("Excepted size and name, got {name:?} and {size:?}"),
         }
     }
@@ -167,7 +169,7 @@ impl<'a> Parser<'a> {
 
     fn parse_expr(&mut self, precedence: Precedence) -> Expr {
         let mut left = self.parse_expr_prefix();
-        while precedence < Precedence::from_token(self.peak_token().as_ref().unwrap()) {
+        while precedence < self.peak_token().as_ref().unwrap().into() {
             match self.parse_expr_infix(left) {
                 (infix, true) => left = infix,
                 (infix, false) => {
@@ -184,7 +186,7 @@ impl<'a> Parser<'a> {
             Token::Ident(ident) => Expr::Variable(ident),
             Token::Int(value) => Expr::Literal(Literal::Int(value)),
             Token::Bang => Expr::Not(Box::new(
-                self.parse_expr(Precedence::from_token(&Token::Bang)),
+                self.parse_expr((&Token::Bang).into()),
             )),
             Token::Float(value) => Expr::Literal(Literal::Float(value)),
             Token::LParenth => self.parse_expr(Precedence::Lowest),

@@ -89,7 +89,7 @@ impl<'a> Lexer<'a> {
                     Some(Token::Equal)
                 } else {
                     // we don't use an assign to assign a value
-                    panic!("Unexpected character {:?}", self.current.unwrap())
+                    panic!("Unexpected character {:?}", self.current?)
                 }
             }
             '!' => {
@@ -124,7 +124,7 @@ impl<'a> Lexer<'a> {
                 self.next_char();
                 self.next_token()
             }
-            _ => panic!("Unexpected character {:?}", self.current.unwrap()),
+            _ => panic!("Unexpected character {:?}", self.current?), // unwrap in a panic does not really make sense
         }
     }
 
@@ -142,7 +142,7 @@ impl<'a> Lexer<'a> {
         let mut num = self.next_char().unwrap().to_string();
         let mut is_float = false;
         let mut is_hex = false;
-        while let Some(next) = self.peak_char() {
+        while let Some(next) = self.peak_char() { // Would also be cool to use an iterator
             match next {
                 '1'..='9' => {
                     num.push(self.next_char()?);
@@ -200,7 +200,7 @@ mod tests {
 }"#;
         let mut lexer = Lexer::new(input.chars());
 
-        let expected_tokens = vec![
+        let expected_tokens = [
             Token::At,
             Token::Int(4),
             Token::Ident("compute".to_string()),
