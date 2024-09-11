@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use core::panic;
+use std::iter::Peekable;
 
 #[derive(Debug, PartialEq)]
 pub enum Token {
@@ -26,134 +27,120 @@ pub enum Token {
 }
 
 pub struct Lexer<'a> {
-    current: Option<char>,
-    next: Option<char>,
-    reader: Box<dyn Iterator<Item = char> + 'a>,
+    reader: Peekable<Box<dyn Iterator<Item = char> + 'a>>,
 }
 
-impl<'a> Lexer<'a> {
-    pub fn new(mut reader: impl Iterator<Item = char> + 'a) -> Self {
-        Lexer {
-            current: None,
-            next: reader.next(),
-            reader: Box::new(reader),
-        }
-    }
-
-    fn next_char(&mut self) -> Option<char> {
-        self.current = self.next;
-        self.next = self.reader.next();
-        self.current
-    }
-
-    fn peak_char(&self) -> Option<char> {
-        self.next
-    }
-
-    /// Give the token starting at next char. End on the final char of the token
-    pub fn next_token(&mut self) -> Option<Token> {
-        match self.peak_char()? {
+impl<'a> Iterator for Lexer<'a> {
+    type Item = Token;
+    fn next(&mut self) -> Option<Token> {
+        match self.reader.peek()? {
             '1'..='9' | 'A'..='F' => self.parse_number(),
             'a'..='z' => self.parse_ident(),
             '(' => {
-                self.next_char();
+                self.reader.next();
                 Some(Token::LParenth)
             }
             ')' => {
-                self.next_char();
+                self.reader.next();
                 Some(Token::RParenth)
             }
             '+' => {
-                self.next_char();
+                self.reader.next();
                 Some(Token::Plus)
             }
             '-' => {
-                self.next_char();
+                self.reader.next();
                 Some(Token::Dash)
             }
             '/' => {
-                self.next_char();
+                self.reader.next();
                 Some(Token::Slash)
             }
             '%' => {
-                self.next_char();
+                self.reader.next();
                 Some(Token::Modulo)
             }
             '*' => {
-                self.next_char();
+                self.reader.next();
                 Some(Token::Asterix)
             }
             '=' => {
-                if let Some('=') = self.peak_char() {
-                    self.next_char();
+                if let Some('=') = self.reader.peek() {
+                    self.reader.next();
                     Some(Token::Equal)
                 } else {
                     // we don't use an assign to assign a value
-                    panic!("Unexpected character {:?}", self.current?)
+                    panic!("Unexpected character {:?}", self.reader.peek())
                 }
             }
             '!' => {
-                self.next_char();
+                self.reader.next();
                 Some(Token::Bang)
             }
             '<' => {
-                self.next_char();
+                self.reader.next();
                 Some(Token::Less)
             }
             '?' => {
-                self.next_char();
+                self.reader.next();
                 Some(Token::Question)
             }
             '@' => {
-                self.next_char();
+                self.reader.next();
                 Some(Token::At)
             }
             '~' => {
-                self.next_char();
+                self.reader.next();
                 Some(Token::Tilde)
             }
             '{' => {
-                self.next_char();
+                self.reader.next();
                 Some(Token::LBrace)
             }
             '}' => {
-                self.next_char();
+                self.reader.next();
                 Some(Token::RBrace)
             }
             ' ' | '\t' | '\n' | '\r' => {
-                self.next_char();
-                self.next_token()
+                self.reader.next();
+                self.next()
             }
-            _ => panic!("Unexpected character {:?}", self.current?), // unwrap in a panic does not really make sense
+            _ => panic!("Unexpected character {:?}", self.reader.peek()), // unwrap in a panic does not really make sense
+        }
+    }
+}
+
+impl<'a> Lexer<'a> {
+    pub fn new(reader: impl Iterator<Item = char> + 'a) -> Self {
+        let x: Box<dyn Iterator<Item = char> + 'a> = Box::new(reader);
+        Lexer {
+            reader: x.peekable(),
         }
     }
 
-    pub fn peak_token(&mut self) -> Option<Token> {
-        todo!()
-    }
-
     // pub function that says if there is any token left
-    pub fn has_next(&self) -> bool {
-        self.next.is_some()
+    pub fn has_next(&mut self) -> bool {
+        self.reader.peek().is_some()
     }
 
     // TEST: point and hex can be complicated and accept unwanted result
     fn parse_number(&mut self) -> Option<Token> {
-        let mut num = self.next_char().unwrap().to_string();
+        let mut num = self.reader.next().unwrap().to_string();
         let mut is_float = false;
         let mut is_hex = false;
-        while let Some(next) = self.peak_char() { // Would also be cool to use an iterator
+        while let Some(next) = self.reader.peek() {
+            // Would also be cool to use an iterator
             match next {
                 '1'..='9' => {
-                    num.push(self.next_char()?);
+                    num.push(self.reader.next()?);
                 }
                 'A'..='F' if !is_float => {
-                    num.push(self.next_char()?);
+                    num.push(self.reader.next()?);
                     is_hex = true;
                 }
                 '.' if !is_float && !is_hex => {
                     is_float = true;
-                    num.push(self.next_char()?);
+                    num.push(self.reader.next()?);
                 }
                 _ => break,
             }
@@ -166,10 +153,10 @@ impl<'a> Lexer<'a> {
     }
 
     fn parse_ident(&mut self) -> Option<Token> {
-        let mut ident = self.next_char().unwrap().to_string();
-        while let Some(next) = self.peak_char() {
+        let mut ident = self.reader.next().unwrap().to_string();
+        while let Some(next) = self.reader.peek() {
             if next.is_ascii_lowercase() {
-                ident.push(self.next_char()?);
+                ident.push(self.reader.next()?);
             } else {
                 break;
             }
@@ -243,7 +230,7 @@ mod tests {
         ];
 
         for expected_token in expected_tokens {
-            assert_eq!(lexer.next_token().unwrap(), expected_token);
+            assert_eq!(lexer.next().unwrap(), expected_token);
         }
     }
 }

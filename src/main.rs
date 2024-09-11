@@ -7,7 +7,7 @@ fn main() {
     let mut lexer = Lexer::new(chars); // Ideally this would move inside the crate to avoid have Lexer mod as public (same for Parser)
     match args.cmd {
         obsi::cli::Command::Lexer => {
-            while let Some(token) = lexer.next_token() {
+            for token in lexer.by_ref() {
                 println!("{:#?}", token);
             }
         }
