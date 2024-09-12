@@ -128,10 +128,7 @@ impl<'a> Lexer<'a> {
         let chars: String = self
             .reader
             .by_ref()
-            .take_while(|c| match c {
-                '1'..='9' | '.' | 'A'..='F' => true,
-                _ => false,
-            })
+            .take_while(|c| matches!(c, '1'..='9' | '.' | 'A'..='F'))
             .collect();
 
         if chars.contains(".") {
