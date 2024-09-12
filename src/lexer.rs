@@ -125,43 +125,29 @@ impl<'a> Lexer<'a> {
 
     // TEST: point and hex can be complicated and accept unwanted result
     fn parse_number(&mut self) -> Option<Token> {
-        let mut num = self.reader.next().unwrap().to_string();
-        let mut is_float = false;
-        let mut is_hex = false;
-        while let Some(next) = self.reader.peek() {
-            // Would also be cool to use an iterator
-            match next {
-                '1'..='9' => {
-                    num.push(self.reader.next()?);
-                }
-                'A'..='F' if !is_float => {
-                    num.push(self.reader.next()?);
-                    is_hex = true;
-                }
-                '.' if !is_float && !is_hex => {
-                    is_float = true;
-                    num.push(self.reader.next()?);
-                }
-                _ => break,
-            }
-        }
-        if is_float {
-            Some(Token::Float(num.parse().unwrap()))
+        let chars: String = self
+            .reader
+            .by_ref()
+            .take_while(|c| match c {
+                '1'..='9' | '.' | 'A'..='F' => true,
+                _ => false,
+            })
+            .collect();
+
+        if chars.contains(".") {
+            chars.parse().ok().map(Token::Float)
         } else {
-            Some(Token::Int(i64::from_str_radix(&num, 16).unwrap()))
+            i64::from_str_radix(&chars, 16).ok().map(Token::Int)
         }
     }
 
     fn parse_ident(&mut self) -> Option<Token> {
-        let mut ident = self.reader.next().unwrap().to_string();
-        while let Some(next) = self.reader.peek() {
-            if next.is_ascii_lowercase() {
-                ident.push(self.reader.next()?);
-            } else {
-                break;
-            }
-        }
-        Some(Token::Ident(ident))
+        Some(Token::Ident(
+            self.reader
+                .by_ref()
+                .take_while(|c| c.is_ascii_lowercase())
+                .collect(),
+        ))
     }
 }
 
