@@ -3,6 +3,7 @@ use std::io;
 use std::io::{BufRead, BufReader};
 
 pub mod cli;
+pub mod generator;
 pub mod lexer;
 pub mod parser;
 
