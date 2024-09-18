@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-mod ast;
+pub(crate) mod ast;
 
 use ast::{BinOp, Expr, Literal, Precedence, Program, Stmt};
 
@@ -77,11 +77,12 @@ impl<'a> Parser<'a> {
 
     fn parse_stmt_declare(&mut self) -> Stmt {
         match (self.lexer.next().take(), self.lexer.next().take()) {
-            (Some(Token::Int(size)), Some(Token::Ident(name))) => Stmt::Declare(size as i8, name),
+            (Some(Token::Int(size)), Some(Token::Ident(name))) => Stmt::Declare(size as u32, name),
             (size, name) => panic!("Expected size and size, got {size:?} {name:?}"),
         }
     }
 
+    // NOTE: I search to iterate two by two on the lexer but didn't find a way that work
     fn parse_stmt_func(&mut self) -> Stmt {
         self.lexer.next(); // we ignore '@'
         match (self.lexer.next().take(), self.lexer.next().take()) {
@@ -91,13 +92,13 @@ impl<'a> Parser<'a> {
                 while !self.check_next(Token::LBrace) {
                     match (self.lexer.next().take(), self.lexer.next().take()) {
                         (Some(Token::Int(arg_size)), Some(Token::Ident(arg_name))) => {
-                            args.push((arg_size as i8, arg_name))
+                            args.push((arg_size as u32, arg_name))
                         }
                         (size, name) => panic!("Expected size and name, got {name:?} and {size:?}"),
                     }
                 }
 
-                Stmt::Function(size as i8, name, args, Box::new(self.parse_stmt_block()))
+                Stmt::Function(size as u32, name, args, Box::new(self.parse_stmt_block()))
             }
             // TODO: Okish to compile during compilation but should have a dedicated system for this
             (size, name) => panic!("Excepted size and name, got {name:?} and {size:?}"),
@@ -192,7 +193,7 @@ impl<'a> Parser<'a> {
     fn parse_expr_infix(&mut self, left: Expr) -> (Expr, bool) {
         match self.lexer.next().as_ref().unwrap() {
             Token::Plus => (
-                Expr::BinaryOp(
+                Expr::Infix(
                     Box::new(left),
                     BinOp::Add,
                     Box::new(self.parse_expr(Precedence::Sum)),
@@ -200,7 +201,7 @@ impl<'a> Parser<'a> {
                 true,
             ),
             Token::Dash => (
-                Expr::BinaryOp(
+                Expr::Infix(
                     Box::new(left),
                     BinOp::Sub,
                     Box::new(self.parse_expr(Precedence::Sum)),
@@ -208,7 +209,7 @@ impl<'a> Parser<'a> {
                 true,
             ),
             Token::Slash => (
-                Expr::BinaryOp(
+                Expr::Infix(
                     Box::new(left),
                     BinOp::Div,
                     Box::new(self.parse_expr(Precedence::Sum)),
@@ -216,7 +217,7 @@ impl<'a> Parser<'a> {
                 true,
             ),
             Token::Modulo => (
-                Expr::BinaryOp(
+                Expr::Infix(
                     Box::new(left),
                     BinOp::Mod,
                     Box::new(self.parse_expr(Precedence::Sum)),
@@ -224,7 +225,7 @@ impl<'a> Parser<'a> {
                 true,
             ),
             Token::Asterix => (
-                Expr::BinaryOp(
+                Expr::Infix(
                     Box::new(left),
                     BinOp::Mul,
                     Box::new(self.parse_expr(Precedence::Sum)),
@@ -232,7 +233,7 @@ impl<'a> Parser<'a> {
                 true,
             ),
             Token::Equal => (
-                Expr::BinaryOp(
+                Expr::Infix(
                     Box::new(left),
                     BinOp::Equal,
                     Box::new(self.parse_expr(Precedence::Sum)),
@@ -240,7 +241,7 @@ impl<'a> Parser<'a> {
                 true,
             ),
             Token::Less => (
-                Expr::BinaryOp(
+                Expr::Infix(
                     Box::new(left),
                     BinOp::Less,
                     Box::new(self.parse_expr(Precedence::Sum)),
@@ -303,21 +304,21 @@ mod tests {
                 Stmt::Assignment("five".to_string(), Expr::Literal(Literal::Int(5))),
                 Stmt::Assignment(
                     "c".to_string(),
-                    Expr::BinaryOp(
+                    Expr::Infix(
                         Box::new(Expr::Variable("a".to_string())),
                         BinOp::Add,
                         Box::new(Expr::Variable("b".to_string())),
                     ),
                 ),
                 Stmt::If(
-                    Expr::BinaryOp(
+                    Expr::Infix(
                         Box::new(Expr::Variable("b".to_string())),
                         BinOp::Less,
                         Box::new(Expr::Literal(Literal::Int(5))),
                     ),
                     Box::new(Stmt::BlockStatement(vec![Stmt::Assignment(
                         "d".to_string(),
-                        Expr::BinaryOp(
+                        Expr::Infix(
                             Box::new(Expr::Variable("a".to_string())),
                             BinOp::Add,
                             Box::new(Expr::Literal(Literal::Int(5))),
@@ -325,7 +326,7 @@ mod tests {
                     )])),
                     Some(Box::new(Stmt::BlockStatement(vec![Stmt::Assignment(
                         "d".to_string(),
-                        Expr::BinaryOp(
+                        Expr::Infix(
                             Box::new(Expr::Variable("a".to_string())),
                             BinOp::Sub,
                             Box::new(Expr::Literal(Literal::Int(5))),

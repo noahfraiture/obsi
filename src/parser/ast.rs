@@ -5,22 +5,22 @@ pub struct Program(pub Vec<Stmt>);
 
 #[derive(Debug, PartialEq)]
 pub enum Stmt {
-    Declare(i8, String),                                // <size> <ident>
-    Assignment(String, Expr),                           // <ident> <expr>
-    Expression(Expr),                                   // <expr>
-    Function(i8, String, Vec<(i8, String)>, Box<Stmt>), // <size> <ident> <args>* <body>
-    Return(Expr),                                       // <expr>
-    BlockStatement(Vec<Stmt>),                          // <stmt>*
-    If(Expr, Box<Stmt>, Option<Box<Stmt>>),             // <condition> <then> <else>?
+    Declare(u32, String),                                 // <size> <ident>
+    Assignment(String, Expr),                             // <ident> <expr>
+    Expression(Expr),                                     // <expr>
+    Function(u32, String, Vec<(u32, String)>, Box<Stmt>), // <size> <ident> <args>* <body>
+    Return(Expr),                                         // <expr>
+    BlockStatement(Vec<Stmt>),                            // <stmt>*
+    If(Expr, Box<Stmt>, Option<Box<Stmt>>),               // <condition> <then> <else>?
 }
 
 #[derive(Debug, PartialEq)]
 pub enum Expr {
-    Literal(Literal),                      // <literal>
-    Variable(String),                      // <ident>
-    BinaryOp(Box<Expr>, BinOp, Box<Expr>), // <expr> <binop> <expr>
-    Not(Box<Expr>),                        // ! <expr>
-    Call(Box<Expr>, Vec<Expr>),            // <expr> <expr>* == <function> <args>*
+    Literal(Literal),                   // <literal>
+    Variable(String),                   // <ident>
+    Infix(Box<Expr>, BinOp, Box<Expr>), // <expr> <binop> <expr>
+    Not(Box<Expr>),                     // ! <expr>
+    Call(Box<Expr>, Vec<Expr>),         // <expr> <expr>* == <function> <args>*
 }
 
 #[derive(Debug, PartialEq)]
@@ -51,7 +51,8 @@ pub enum Precedence {
     Call,
 }
 
-impl From<&Token> for Precedence { // Use the Rust tooling for this kind of thing
+impl From<&Token> for Precedence {
+    // Use the Rust tooling for this kind of thing
     fn from(token: &Token) -> Self {
         match token {
             Token::LParenth => Self::Call,
