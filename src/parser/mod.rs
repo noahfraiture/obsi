@@ -77,7 +77,7 @@ impl<'a> Parser<'a> {
 
     fn parse_stmt_declare(&mut self) -> Stmt {
         match (self.lexer.next().take(), self.lexer.next().take()) {
-            (Some(Token::Int(size)), Some(Token::Ident(name))) => Stmt::Declare(size as u8, name),
+            (Some(Token::Int(size)), Some(Token::Ident(name))) => Stmt::Declare(size as u32, name),
             (size, name) => panic!("Expected size and size, got {size:?} {name:?}"),
         }
     }
@@ -92,13 +92,13 @@ impl<'a> Parser<'a> {
                 while !self.check_next(Token::LBrace) {
                     match (self.lexer.next().take(), self.lexer.next().take()) {
                         (Some(Token::Int(arg_size)), Some(Token::Ident(arg_name))) => {
-                            args.push((arg_size as u8, arg_name))
+                            args.push((arg_size as u32, arg_name))
                         }
                         (size, name) => panic!("Expected size and name, got {name:?} and {size:?}"),
                     }
                 }
 
-                Stmt::Function(size as u8, name, args, Box::new(self.parse_stmt_block()))
+                Stmt::Function(size as u32, name, args, Box::new(self.parse_stmt_block()))
             }
             // TODO: Okish to compile during compilation but should have a dedicated system for this
             (size, name) => panic!("Excepted size and name, got {name:?} and {size:?}"),

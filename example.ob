@@ -5,5 +5,5 @@
 	five 5 # assign '5' to 'five'
 	c a + b
 	d c + 5
-	~ d
+	~ d # should return 10
 }

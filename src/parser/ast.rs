@@ -5,13 +5,13 @@ pub struct Program(pub Vec<Stmt>);
 
 #[derive(Debug, PartialEq)]
 pub enum Stmt {
-    Declare(u8, String),                                // <size> <ident>
-    Assignment(String, Expr),                           // <ident> <expr>
-    Expression(Expr),                                   // <expr>
-    Function(u8, String, Vec<(u8, String)>, Box<Stmt>), // <size> <ident> <args>* <body>
-    Return(Expr),                                       // <expr>
-    BlockStatement(Vec<Stmt>),                          // <stmt>*
-    If(Expr, Box<Stmt>, Option<Box<Stmt>>),             // <condition> <then> <else>?
+    Declare(u32, String),                                 // <size> <ident>
+    Assignment(String, Expr),                             // <ident> <expr>
+    Expression(Expr),                                     // <expr>
+    Function(u32, String, Vec<(u32, String)>, Box<Stmt>), // <size> <ident> <args>* <body>
+    Return(Expr),                                         // <expr>
+    BlockStatement(Vec<Stmt>),                            // <stmt>*
+    If(Expr, Box<Stmt>, Option<Box<Stmt>>),               // <condition> <then> <else>?
 }
 
 #[derive(Debug, PartialEq)]
