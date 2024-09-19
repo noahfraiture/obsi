@@ -139,12 +139,15 @@ impl<'a> Lexer<'a> {
     }
 
     fn parse_ident(&mut self) -> Option<Token> {
-        Some(Token::Ident(
-            self.reader
-                .by_ref()
-                .take_while(|c| c.is_ascii_lowercase())
-                .collect(),
-        ))
+        let mut ident = self.reader.next().unwrap().to_string();
+        while let Some(next) = self.reader.peek() {
+            if next.is_ascii_lowercase() {
+                ident.push(self.reader.next()?);
+            } else {
+                break;
+            }
+        }
+        Some(Token::Ident(ident))
     }
 }
 
