@@ -1,12 +1,36 @@
+use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::Module;
-use inkwell::{builder::Builder, values::BasicValueEnum};
 use inkwell::{IntPredicate, OptimizationLevel};
 
+use crate::parser;
 use crate::parser::ast::{BinOp, Expr, Literal, Program, Stmt};
 
 mod symbol_table;
+
+pub fn run(program: &Program) -> i64 {
+    let context = Context::create();
+    let module_name = "main";
+    let mut codegen = CodeGen::new(&context, module_name);
+    codegen.gen(program);
+
+    let llvm_ir = codegen.module.print_to_string().to_string();
+    println!("{}", llvm_ir);
+
+    let main_fn = unsafe {
+        codegen
+            .execution_engine
+            .get_function::<unsafe extern "C" fn() -> i64>("main")
+            .expect("Failed to get function")
+    };
+
+    let result;
+    unsafe {
+        result = main_fn.call();
+    }
+    result
+}
 
 pub struct CodeGen<'ctx> {
     context: &'ctx Context,
@@ -52,9 +76,7 @@ impl<'ctx> CodeGen<'ctx> {
             Stmt::Declare(size, name) => self.gen_stmt_declare(*size, name),
             Stmt::Assignment(name, value) => self.gen_stmt_assignment(name, value),
             Stmt::Expression(expr) => self.gen_stmt_expr(expr),
-            Stmt::Function(size, name, args, body) => {
-                self.gen_stmt_function(*size, name, args, body)
-            }
+            Stmt::Function(size, name, args, body) => self.gen_stmt_func(*size, name, args, body),
             Stmt::Return(value) => self.gen_stmt_return(value),
             Stmt::BlockStatement(stmts) => self.gen_stmt_block(stmts),
             Stmt::If(condition, consequence, alternative) => {
@@ -91,20 +113,19 @@ impl<'ctx> CodeGen<'ctx> {
         self.builder
             .build_store(variable.ptr, value)
             .expect("Failed to build store");
-
-        println!("Assigned value to {}: {:?}", name, value);
     }
 
     fn gen_stmt_expr(&self, value: &Expr) {
         self.gen_expr(value);
     }
 
-    fn gen_stmt_function(&mut self, size: u32, name: &str, args: &[(u32, String)], body: &Stmt) {
+    fn gen_stmt_func(&mut self, size: u32, name: &str, args: &[(u32, String)], body: &Stmt) {
+        self.table.enter_scope();
         let return_type = self.context.custom_width_int_type(size);
 
         let arg_types: Vec<_> = args
             .iter()
-            .map(|(arg_size, _)| self.context.custom_width_int_type(*arg_size).into())
+            .map(|(arg_size, _)| self.context.custom_width_int_type(*arg_size * 8).into())
             .collect();
         let fn_type = return_type.fn_type(&arg_types, false);
 
@@ -114,19 +135,20 @@ impl<'ctx> CodeGen<'ctx> {
 
         for (i, (_, arg_name)) in args.iter().enumerate() {
             let arg = function.get_nth_param(i as u32).unwrap();
-            let alloca = self
+            let ptr = self
                 .builder
                 .build_alloca(arg.get_type(), arg_name)
                 .expect("alloc");
-            self.builder
-                .build_store(alloca, arg)
-                .expect("store argument");
+            self.builder.build_store(ptr, arg).expect("store argument");
+            self.table.insert(arg_name.to_string(), ptr, arg.get_type());
         }
 
         self.gen_stmt(body);
 
-        // TODO : remove if already a return statement, or force return none in the ast
-        self.builder.build_return(None).expect("build return");
+        if !parser::has_return(body) {
+            self.builder.build_return(None).expect("build return");
+        }
+        self.table.exit_scope();
     }
 
     fn gen_stmt_return(&self, value: &Expr) {
@@ -249,7 +271,7 @@ impl<'ctx> CodeGen<'ctx> {
 
     fn gen_expr_call(
         &self,
-        function: &Expr,
+        function_expr: &Expr,
         args: &[Expr],
     ) -> inkwell::values::BasicValueEnum<'ctx> {
         todo!()
@@ -381,14 +403,14 @@ mod tests {
         let program = Program(vec![Stmt::Function(
             8,
             "compute".to_string(),
-            vec![(8, "a".to_string()), (8, "b".to_string())],
+            vec![(8, "a".to_string()), (8, "b".to_string())], // 2 and 3
             Box::new(Stmt::BlockStatement(vec![
                 Stmt::Declare(8, "five".to_string()),
                 Stmt::Declare(8, "c".to_string()),
                 Stmt::Declare(8, "d".to_string()),
                 Stmt::Assignment("five".to_string(), Expr::Literal(Literal::Int(5))),
                 Stmt::Assignment(
-                    "c".to_string(),
+                    "c".to_string(), // 5
                     Expr::Infix(
                         Box::new(Expr::Variable("a".to_string())),
                         BinOp::Add,
@@ -397,6 +419,7 @@ mod tests {
                 ),
                 Stmt::If(
                     Expr::Infix(
+                        // true
                         Box::new(Expr::Variable("b".to_string())),
                         BinOp::Less,
                         Box::new(Expr::Literal(Literal::Int(5))),
@@ -408,12 +431,12 @@ mod tests {
                             BinOp::Add,
                             Box::new(Expr::Literal(Literal::Int(5))),
                         ),
-                    )])),
+                    )])), // ignored
                     Some(Box::new(Stmt::BlockStatement(vec![Stmt::Assignment(
                         "d".to_string(),
                         Expr::Infix(
                             Box::new(Expr::Variable("a".to_string())),
-                            BinOp::Sub,
+                            BinOp::Mul,
                             Box::new(Expr::Literal(Literal::Int(5))),
                         ),
                     )]))),
@@ -440,7 +463,7 @@ mod tests {
 
         unsafe {
             let result = compute_fn.call(2, 3);
-            assert_eq!(result, 10);
+            assert_eq!(result, 7);
         }
     }
 }

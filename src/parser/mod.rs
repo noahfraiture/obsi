@@ -271,6 +271,18 @@ impl<'a> Parser<'a> {
     }
 }
 
+pub fn has_return(stmt: &Stmt) -> bool {
+    match stmt {
+        Stmt::Declare(_, _) => false,
+        Stmt::Assignment(_, _) => false,
+        Stmt::Expression(_) => false,
+        Stmt::Function(_, _, _, _) => unreachable!(),
+        Stmt::Return(_) => true,
+        Stmt::BlockStatement(block) => block.iter().all(has_return),
+        Stmt::If(_, c, a) => has_return(c) && a.as_ref().map_or(true, |a| has_return(a)),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

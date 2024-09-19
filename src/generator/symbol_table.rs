@@ -12,9 +12,7 @@ pub struct SymbolTable<'ctx> {
 
 impl<'ctx> SymbolTable<'ctx> {
     pub fn new() -> Self {
-        SymbolTable {
-            scopes: vec![HashMap::new()],
-        }
+        SymbolTable { scopes: Vec::new() }
     }
 
     pub fn enter_scope(&mut self) {

@@ -1,9 +1,9 @@
-@4 addfive 4 a 4 b {
-	4 five # declare variable 'five' for 4 bytes
-	4 c
-	4 d
+@8 main 8 a 8 b { # if call without value, args will take random value
+	8 five # declare variable 'five' for 4 bytes
+	8 c
+	8 d
 	five 5 # assign '5' to 'five'
 	c a + b
 	d c + 5
-	~ d # should return 10
+	~ d
 }

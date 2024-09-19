@@ -1,3 +1,4 @@
+use obsi::generator;
 use obsi::lexer::Lexer;
 use obsi::parser::Parser;
 
@@ -16,6 +17,11 @@ fn main() {
             let program = parser.parse();
             println!("{:#?}", program);
         }
-        obsi::cli::Command::Compiler => todo!(),
+        obsi::cli::Command::Compiler => {
+            let mut parser = Parser::new(lexer);
+            let program = parser.parse();
+            let result = generator::run(&program);
+            println!("{}", result);
+        }
     };
 }
