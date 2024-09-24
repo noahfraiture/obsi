@@ -18,15 +18,19 @@ pub enum Token {
     Modulo,        // %
     Asterix,       // *
     Equal,         // ==
-    Bang,          // ! not
+    Bang,          // ! not at bit level, thus !8 = -9
+    Xor,           // ^
+    Or,            // |
+    And,           // &
     Less,          // < all comparison can be made with this and equal
 
     // could replace '} {', but must find a unique character to represent it
     Question, // ? used in '? condition { print(true) } { print(false) }'
-    // TODO: add loop
-    At,     // @ declare a function. '@ main {}'
-    Dollar, // $ call a function.    'add $ a b'
-    Tilde,  // ~ return a value.     '~ result'
+    At,       // @ declare a function. '@ main {}'
+    Dollar,   // $ call a function.    '$ add a b'
+    Tilde,    // ~ return a value.     '~ result'
+
+              // TODO: add loop
 }
 
 pub struct Lexer<'a> {
@@ -79,6 +83,18 @@ impl<'a> Iterator for Lexer<'a> {
             '!' => {
                 self.reader.next();
                 Some(Token::Bang)
+            }
+            '^' => {
+                self.reader.next();
+                Some(Token::Xor)
+            }
+            '|' => {
+                self.reader.next();
+                Some(Token::Or)
+            }
+            '&' => {
+                self.reader.next();
+                Some(Token::And)
             }
             '<' => {
                 self.reader.next();

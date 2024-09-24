@@ -17,7 +17,7 @@ fn main() {
             let program = parser.parse();
             println!("{:#?}", program);
         }
-        obsi::cli::Command::Compiler => {
+        obsi::cli::Command::Run => {
             let mut parser = Parser::new(lexer);
             let program = parser.parse();
             let result = generator::run(&program);

@@ -20,7 +20,7 @@ pub enum Expr {
     Variable(String),                   // <ident>
     Infix(Box<Expr>, BinOp, Box<Expr>), // <expr> <binop> <expr>
     Not(Box<Expr>),                     // ! <expr>
-    Call(Box<Expr>, Vec<Expr>),         // <expr> <expr>* == <function pointer> <args>*
+    Call(Box<Expr>, Vec<Expr>),         // <expr> <expr>* == <pointer> <args>*
 }
 
 #[derive(Debug, PartialEq)]
@@ -38,6 +38,9 @@ pub enum BinOp {
     Mod,
     Less,
     Equal,
+    Xor,
+    Or,
+    And,
 }
 
 #[derive(PartialOrd, PartialEq)]

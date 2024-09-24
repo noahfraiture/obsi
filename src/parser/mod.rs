@@ -57,11 +57,15 @@ impl<'a> Parser<'a> {
             | Token::Modulo
             | Token::Asterix
             | Token::Equal
+            | Token::LBrace
+            | Token::RBrace
+            | Token::Xor
+            | Token::Or
+            | Token::And
             | Token::Less => {
                 panic!("Unexpected token {:?}", self.lexer.peek())
             }
-            Token::LBrace => todo!(), // TODO : block statement
-            Token::RBrace => todo!(),
+            Token::Dollar => self.parse_stmt_expr(), // function call
         }
     }
 
@@ -84,25 +88,36 @@ impl<'a> Parser<'a> {
 
     // NOTE: I search to iterate two by two on the lexer but didn't find a way that work
     fn parse_stmt_func(&mut self) -> Stmt {
-        self.lexer.next(); // we ignore '@'
-        match (self.lexer.next().take(), self.lexer.next().take()) {
-            (Some(Token::Int(size)), Some(Token::Ident(name))) => {
-                // parse function arguments
-                let mut args = Vec::new();
-                while !self.check_next(Token::LBrace) {
-                    match (self.lexer.next().take(), self.lexer.next().take()) {
-                        (Some(Token::Int(arg_size)), Some(Token::Ident(arg_name))) => {
-                            args.push((arg_size as u32, arg_name))
-                        }
-                        (size, name) => panic!("Expected size and name, got {name:?} and {size:?}"),
-                    }
-                }
+        self.lexer.next(); // Ignore '@'
 
-                Stmt::Function(size as u32, name, args, Box::new(self.parse_stmt_block()))
-            }
-            // TODO: Okish to compile during compilation but should have a dedicated system for this
-            (size, name) => panic!("Excepted size and name, got {name:?} and {size:?}"),
+        let size = match self.lexer.next().take() {
+            Some(Token::Int(size)) => size as u32,
+            token => panic!("Expected function size, got {:?}", token),
+        };
+
+        let name = match self.lexer.next().take() {
+            Some(Token::Ident(name)) => name,
+            token => panic!("Expected function name, got {:?}", token),
+        };
+
+        // Parse function arguments
+        let mut args = Vec::new();
+        while !self.check_next(Token::LBrace) {
+            let arg_size = match self.lexer.next().take() {
+                Some(Token::Int(arg_size)) => arg_size as u32,
+                token => panic!("Expected argument size, got {:?}", token),
+            };
+
+            let arg_name = match self.lexer.next().take() {
+                Some(Token::Ident(arg_name)) => arg_name,
+                token => panic!("Expected argument name, got {:?}", token),
+            };
+
+            args.push((arg_size, arg_name));
         }
+
+        // TODO : add return check
+        Stmt::Function(size, name, args, Box::new(self.parse_stmt_block()))
     }
 
     fn parse_stmt_block(&mut self) -> Stmt {
@@ -124,15 +139,15 @@ impl<'a> Parser<'a> {
             panic!("Expected '{{', got {:?}", self.lexer.peek());
         }
 
-        let consequence = self.parse_stmt_block();
+        let then_stmt = self.parse_stmt_block();
 
-        let alternative = if self.check_next(Token::LBrace) {
+        let else_stmt = if self.check_next(Token::LBrace) {
             Some(self.parse_stmt_block())
         } else {
             None
         };
 
-        Stmt::If(condition, Box::new(consequence), alternative.map(Box::new))
+        Stmt::If(condition, Box::new(then_stmt), else_stmt.map(Box::new))
     }
 
     fn parse_stmt_return(&mut self) -> Stmt {
@@ -179,6 +194,10 @@ impl<'a> Parser<'a> {
             Token::Tilde => todo!(),
             Token::LBrace => todo!(),
             Token::RBrace => todo!(),
+            Token::Dollar => todo!(),
+            Token::Xor => todo!(),
+            Token::Or => todo!(),
+            Token::And => todo!(),
         }
     }
 
@@ -245,6 +264,30 @@ impl<'a> Parser<'a> {
                 Expr::Infix(
                     Box::new(left),
                     BinOp::Less,
+                    Box::new(self.parse_expr(Precedence::Sum)),
+                ),
+                true,
+            ),
+            Token::Xor=> (
+                Expr::Infix(
+                    Box::new(left),
+                    BinOp::Xor,
+                    Box::new(self.parse_expr(Precedence::Sum)),
+                ),
+                true,
+            ),
+            Token::Or => (
+                Expr::Infix(
+                    Box::new(left),
+                    BinOp::Or,
+                    Box::new(self.parse_expr(Precedence::Sum)),
+                ),
+                true,
+            ),
+            Token::And => (
+                Expr::Infix(
+                    Box::new(left),
+                    BinOp::And,
                     Box::new(self.parse_expr(Precedence::Sum)),
                 ),
                 true,

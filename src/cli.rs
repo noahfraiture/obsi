@@ -29,8 +29,8 @@ pub enum Command {
     Lexer,
     /// Print the AST from the file
     Parser,
-    /// Produce a binary from the file
-    Compiler,
+    /// Run the code with JIT
+    Run,
 }
 
 pub fn args() -> Cli {

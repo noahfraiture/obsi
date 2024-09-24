@@ -164,45 +164,64 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    fn gen_stmt_if(
-        &mut self,
-        condition: &Expr,
-        consequence: &Stmt,
-        alternative: &Option<Box<Stmt>>,
-    ) {
+    // TODO : what is merge
+    fn gen_stmt_if(&mut self, condition: &Expr, then_stmt: &Stmt, else_stmt: &Option<Box<Stmt>>) {
+        let current_function = self
+            .builder
+            .get_insert_block()
+            .unwrap()
+            .get_parent()
+            .unwrap();
+
         let condition_value = self.gen_expr(condition).into_int_value();
-        let then_bb = self
-            .context
-            .append_basic_block(self.module.get_last_function().unwrap(), "then");
-        let else_bb = self
-            .context
-            .append_basic_block(self.module.get_last_function().unwrap(), "else");
-        let merge_bb = self
-            .context
-            .append_basic_block(self.module.get_last_function().unwrap(), "merge");
+
+        // Create basic blocks for 'then', 'else', and 'merge'
+        let then_block = self.context.append_basic_block(current_function, "then");
+        let else_block = self.context.append_basic_block(current_function, "else");
+        // block after if-else
+        let merge_block = self.context.append_basic_block(current_function, "merge");
 
         self.builder
-            .build_conditional_branch(condition_value, then_bb, else_bb)
-            .expect("build condition");
+            .build_conditional_branch(condition_value, then_block, else_block)
+            .expect("Failed to build conditional branch");
 
-        // Then block
-        self.builder.position_at_end(then_bb);
-        self.gen_stmt(consequence);
-        self.builder
-            .build_unconditional_branch(merge_bb)
-            .expect("build uncondition");
+        // Generate then
+        self.builder.position_at_end(then_block);
+        self.gen_stmt(then_stmt);
 
-        // Else block
-        self.builder.position_at_end(else_bb);
-        if let Some(alt) = alternative {
-            self.gen_stmt(alt);
+        // Jump to merge if there is no terminator to the function (return)
+        if self
+            .builder
+            .get_insert_block()
+            .unwrap()
+            .get_terminator()
+            .is_none()
+        {
+            self.builder
+                .build_unconditional_branch(merge_block)
+                .expect("Failed to build unconditional branch to merge");
         }
-        self.builder
-            .build_unconditional_branch(merge_bb)
-            .expect("build merge");
 
-        // Merge block
-        self.builder.position_at_end(merge_bb);
+        // Generate else
+        self.builder.position_at_end(else_block);
+        if let Some(alt_stmt) = else_stmt {
+            self.gen_stmt(alt_stmt);
+        }
+
+        if self
+            .builder
+            .get_insert_block()
+            .unwrap()
+            .get_terminator()
+            .is_none()
+        {
+            self.builder
+                .build_unconditional_branch(merge_block)
+                .expect("Failed to build unconditional branch to merge");
+        }
+
+        // Move to 'merge' block
+        self.builder.position_at_end(merge_block);
     }
 
     fn gen_expr(&self, expr: &Expr) -> inkwell::values::BasicValueEnum<'ctx> {
@@ -246,7 +265,7 @@ impl<'ctx> CodeGen<'ctx> {
         let left = self.gen_expr(left).into_int_value();
         let right = self.gen_expr(right).into_int_value();
 
-        match symbol {
+        let value = match symbol {
             BinOp::Add => self.builder.build_int_add(left, right, "addtmp"),
             BinOp::Sub => self.builder.build_int_sub(left, right, "subtmp"),
             BinOp::Mul => self.builder.build_int_mul(left, right, "multmp"),
@@ -259,9 +278,12 @@ impl<'ctx> CodeGen<'ctx> {
             BinOp::Equal => self
                 .builder
                 .build_int_compare(IntPredicate::EQ, left, right, "eqtmp"),
-        }
-        .expect("operation infix")
-        .into()
+            BinOp::Xor => self.builder.build_xor(left, right, "xortmp"),
+            BinOp::Or => self.builder.build_or(left, right, "ortmp"),
+            BinOp::And => self.builder.build_and(left, right, "andtmp"),
+        };
+
+        value.expect("operation infix").into()
     }
 
     fn gen_expr_not(&self, value: &Expr) -> inkwell::values::IntValue<'ctx> {
@@ -274,7 +296,21 @@ impl<'ctx> CodeGen<'ctx> {
         function_expr: &Expr,
         args: &[Expr],
     ) -> inkwell::values::BasicValueEnum<'ctx> {
-        todo!()
+        let pointer = match function_expr {
+            Expr::Variable(name) => self.module.get_function(name).expect("function not found"),
+            _ => todo!(),
+        };
+
+        let compiled_args: Vec<inkwell::values::BasicMetadataValueEnum> =
+            args.iter().map(|arg| self.gen_expr(arg).into()).collect();
+
+        let call = self
+            .builder
+            .build_call(pointer, &compiled_args, "calltmp")
+            .expect("call");
+
+        // TODO : what ?
+        call.try_as_basic_value().left().unwrap()
     }
 }
 
@@ -283,11 +319,11 @@ mod tests {
     use crate::parser::ast::Program;
 
     #[allow(dead_code)]
-    fn test_program(program: Program, output: Option<i64>) {
+    fn test_program(program: &Program, output: Option<i64>) {
         let context = Context::create();
         let module_name = "test_module";
         let mut codegen = CodeGen::new(&context, module_name);
-        codegen.gen(&program);
+        codegen.gen(program);
 
         let llvm_ir = codegen.module.print_to_string().to_string();
         println!("{}", llvm_ir);
@@ -325,7 +361,7 @@ mod tests {
             vec![],
             Box::new(Stmt::Return(Expr::Literal(Literal::Int(value)))),
         )]);
-        test_program(program, Some(value));
+        test_program(&program, Some(value));
     }
 
     #[test]
@@ -347,7 +383,7 @@ mod tests {
                 Stmt::Return(Expr::Variable("a".to_string())),
             ])),
         )]);
-        test_program(program, Some(5));
+        test_program(&program, Some(5));
     }
 
     #[test]
@@ -362,7 +398,7 @@ mod tests {
                 Stmt::Return(Expr::Variable("a".to_string())),
             ])),
         )]);
-        test_program(program, Some(69));
+        test_program(&program, Some(69));
     }
 
     #[test]
@@ -376,7 +412,7 @@ mod tests {
                 Stmt::Assignment("a".to_string(), Expr::Literal(Literal::Int(69))),
             ])),
         )]);
-        test_program(program, None);
+        test_program(&program, None);
     }
 
     #[test]
@@ -385,13 +421,57 @@ mod tests {
             0,
             "main".to_string(),
             vec![],
-            Box::new(Stmt::BlockStatement(vec![Stmt::If(
-                Expr::Literal(Literal::Int(1)),
-                Box::new(Stmt::BlockStatement(vec![])),
-                Some(Box::new(Stmt::BlockStatement(vec![]))),
-            )])),
+            Box::new(Stmt::BlockStatement(vec![
+                Stmt::Declare(8, "x".to_string()),
+                Stmt::If(
+                    Expr::Literal(Literal::Int(1)),
+                    Box::new(Stmt::Assignment(
+                        "x".to_string(),
+                        Expr::Literal(Literal::Int(1)),
+                    )),
+                    Some(Box::new(Stmt::Assignment(
+                        "x".to_string(),
+                        Expr::Literal(Literal::Int(0)),
+                    ))),
+                ),
+                Stmt::If(
+                    Expr::Literal(Literal::Int(0)),
+                    Box::new(Stmt::Return(Expr::Literal(Literal::Int(0)))),
+                    None,
+                ),
+                Stmt::Return(Expr::Variable("x".to_string())),
+            ])),
         )]);
-        test_program(program, None);
+        test_program(&program, Some(1));
+    }
+
+    #[test]
+    fn test_call() {
+        let program = Program(vec![
+            Stmt::Function(
+                8,
+                "add".to_string(),
+                vec![(8, "a".to_string()), (8, "b".to_string())],
+                Box::new(Stmt::BlockStatement(vec![Stmt::Return(Expr::Infix(
+                    Box::new(Expr::Variable("a".to_string())),
+                    BinOp::Add,
+                    Box::new(Expr::Variable("b".to_string())),
+                ))])),
+            ),
+            Stmt::Function(
+                8,
+                "main".to_string(),
+                vec![],
+                Box::new(Stmt::Return(Expr::Call(
+                    Box::new(Expr::Variable("add".to_string())),
+                    vec![
+                        Expr::Literal(Literal::Int(1)),
+                        Expr::Literal(Literal::Int(2)),
+                    ],
+                ))),
+            ),
+        ]);
+        test_program(&program, Some(3));
     }
 
     #[test]

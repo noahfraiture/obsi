@@ -1,9 +1,9 @@
-@8 main 8 a 8 b { # if call without value, args will take random value
+@8 main { # if call without value, args will take random value
 	8 five # declare variable 'five' for 4 bytes
-	8 c
-	8 d
+	8 three
+	8 eight
 	five 5 # assign '5' to 'five'
-	c a + b
-	d c + 5
-	~ d
+	three 1 + 2
+	eight three + 5
+	~ eight
 }
