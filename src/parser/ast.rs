@@ -20,7 +20,7 @@ pub enum Expr {
     Variable(String),                   // <ident>
     Infix(Box<Expr>, BinOp, Box<Expr>), // <expr> <binop> <expr>
     Not(Box<Expr>),                     // ! <expr>
-    Call(Box<Expr>, Vec<Expr>),         // <expr> <expr>* == <function> <args>*
+    Call(Box<Expr>, Vec<Expr>),         // <expr> <expr>* == <function pointer> <args>*
 }
 
 #[derive(Debug, PartialEq)]
@@ -49,13 +49,14 @@ pub enum Precedence {
     Product,
     Prefix,
     Call,
+    Group,
 }
 
 impl From<&Token> for Precedence {
     // Use the Rust tooling for this kind of thing
     fn from(token: &Token) -> Self {
         match token {
-            Token::LParenth => Self::Call,
+            Token::LParenth => Self::Group,
             Token::Plus => Self::Sum,
             Token::Dash => Self::Sum,
             Token::Slash => Self::Product,
@@ -63,6 +64,7 @@ impl From<&Token> for Precedence {
             Token::Asterix => Self::Product,
             Token::Equal => Self::Equals,
             Token::Bang => Self::Prefix,
+            Token::Dollar => Self::Call,
             Token::Less => Self::Less,
             _ => Self::Lowest,
         }

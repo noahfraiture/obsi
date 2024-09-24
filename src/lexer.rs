@@ -18,12 +18,15 @@ pub enum Token {
     Modulo,        // %
     Asterix,       // *
     Equal,         // ==
-    Bang,          // ! for now
+    Bang,          // ! not
     Less,          // < all comparison can be made with this and equal
-    Question,      // ? used in '? condition { print(true) } { print(false) }'
+
+    // could replace '} {', but must find a unique character to represent it
+    Question, // ? used in '? condition { print(true) } { print(false) }'
     // TODO: add loop
-    At,    // @ declare a function
-    Tilde, // ~ return a value
+    At,     // @ declare a function. '@ main {}'
+    Dollar, // $ call a function.    'add $ a b'
+    Tilde,  // ~ return a value.     '~ result'
 }
 
 pub struct Lexer<'a> {
@@ -88,6 +91,10 @@ impl<'a> Iterator for Lexer<'a> {
             '@' => {
                 self.reader.next();
                 Some(Token::At)
+            }
+            '$' => {
+                self.reader.next();
+                Some(Token::Dollar)
             }
             '~' => {
                 self.reader.next();

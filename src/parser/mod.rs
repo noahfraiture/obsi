@@ -190,6 +190,7 @@ impl<'a> Parser<'a> {
         }
     }
 
+    // The boolean indicates if the infix expression is finished or not
     fn parse_expr_infix(&mut self, left: Expr) -> (Expr, bool) {
         match self.lexer.next().as_ref().unwrap() {
             Token::Plus => (
@@ -248,8 +249,9 @@ impl<'a> Parser<'a> {
                 ),
                 true,
             ),
-            Token::LParenth => (self.parse_expr_call(left), true),
-            Token::RParenth
+            Token::Dollar => (self.parse_expr_call(left), true),
+            Token::LParenth // TODO
+            | Token::RParenth
             | Token::Ident(_)
             | Token::Int(_)
             | Token::At
@@ -262,6 +264,8 @@ impl<'a> Parser<'a> {
         }
     }
 
+    // NOTE : should the call be only usable with function name, thus String instead of expr
+    // Or allow pointer reference for function call
     fn parse_expr_call(&mut self, left: Expr) -> Expr {
         Expr::Call(Box::new(left), self.parse_expr_args())
     }
