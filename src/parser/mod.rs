@@ -2,7 +2,7 @@
 
 pub(crate) mod ast;
 
-use ast::{BinOp, Expr, Literal, Precedence, Program, Stmt};
+use ast::{BinOp, Expr, Literal, PreOp, Precedence, Program, Size, Stmt};
 
 use crate::lexer::{Lexer, Token};
 use core::panic;
@@ -47,6 +47,8 @@ impl<'a> Parser<'a> {
             Token::At => self.parse_stmt_func(),
             Token::Tilde => self.parse_stmt_return(),
             Token::Question => self.parse_stmt_if(),
+            Token::Dollar => self.parse_stmt_expr(),
+            Token::Ptr => self.parse_stmt_declare(),
             Token::Bang
             | Token::Float(_)
             | Token::LParenth
@@ -62,10 +64,11 @@ impl<'a> Parser<'a> {
             | Token::Xor
             | Token::Or
             | Token::And
+            | Token::Comma
+            | Token::Backtick
             | Token::Less => {
                 panic!("Unexpected token {:?}", self.lexer.peek())
             }
-            Token::Dollar => self.parse_stmt_expr(), // function call
         }
     }
 
@@ -80,10 +83,17 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_stmt_declare(&mut self) -> Stmt {
-        match (self.lexer.next().take(), self.lexer.next().take()) {
-            (Some(Token::Int(size)), Some(Token::Ident(name))) => Stmt::Declare(size as u32, name),
-            (size, name) => panic!("Expected size and size, got {size:?} {name:?}"),
-        }
+        let size = match self.lexer.next().take() {
+            Some(Token::Int(size)) => Size::Int(size as u32),
+            Some(Token::Ptr) => Size::Ptr,
+            token => panic!("Expected function size, got {:?}", token),
+        };
+
+        let name = match self.lexer.next().take() {
+            Some(Token::Ident(name)) => name,
+            token => panic!("Expected function name, got {:?}", token),
+        };
+        Stmt::Declare(size, name)
     }
 
     // NOTE: I search to iterate two by two on the lexer but didn't find a way that work
@@ -178,9 +188,18 @@ impl<'a> Parser<'a> {
         match self.lexer.next().take().unwrap() {
             Token::Ident(ident) => Expr::Variable(ident),
             Token::Int(value) => Expr::Literal(Literal::Int(value)),
-            Token::Bang => Expr::Not(Box::new(self.parse_expr((&Token::Bang).into()))),
             Token::Float(value) => Expr::Literal(Literal::Float(value)),
             Token::LParenth => self.parse_expr(Precedence::Lowest),
+            Token::Bang => {
+                Expr::Prefix(PreOp::Not, Box::new(self.parse_expr((&Token::Bang).into())))
+            }
+            Token::Comma => Expr::Prefix(
+                PreOp::Deref,
+                Box::new(self.parse_expr((&Token::Bang).into())),
+            ),
+            Token::Backtick => {
+                Expr::Prefix(PreOp::Ref, Box::new(self.parse_expr((&Token::Bang).into())))
+            }
             Token::RParenth => todo!(),
             Token::At => todo!(),
             Token::Plus => todo!(),
@@ -198,6 +217,7 @@ impl<'a> Parser<'a> {
             Token::Xor => todo!(),
             Token::Or => todo!(),
             Token::And => todo!(),
+            Token::Ptr => todo!(),
         }
     }
 
@@ -299,10 +319,13 @@ impl<'a> Parser<'a> {
             | Token::Int(_)
             | Token::At
             | Token::Bang
+            | Token::Comma
+            | Token::Backtick
             | Token::Float(_)
             | Token::Question
             | Token::Tilde
             | Token::LBrace
+            | Token::Ptr
             | Token::RBrace => (left, false),
         }
     }
@@ -348,6 +371,10 @@ mod tests {
     } {
         d a - 5
     }
+    P ptr
+    4 deref
+    ptr `five
+    deref ,ptr
     ~ d
 }"#;
 
@@ -357,9 +384,9 @@ mod tests {
             "compute".to_string(),
             vec![(4, "a".to_string()), (4, "b".to_string())],
             Box::new(Stmt::BlockStatement(vec![
-                Stmt::Declare(4, "five".to_string()),
-                Stmt::Declare(4, "c".to_string()),
-                Stmt::Declare(4, "d".to_string()),
+                Stmt::Declare(Size::Int(4), "five".to_string()),
+                Stmt::Declare(Size::Int(4), "c".to_string()),
+                Stmt::Declare(Size::Int(4), "d".to_string()),
                 Stmt::Assignment("five".to_string(), Expr::Literal(Literal::Int(5))),
                 Stmt::Assignment(
                     "c".to_string(),
@@ -391,6 +418,16 @@ mod tests {
                             Box::new(Expr::Literal(Literal::Int(5))),
                         ),
                     )]))),
+                ),
+                Stmt::Declare(Size::Ptr, "ptr".to_string()),
+                Stmt::Declare(Size::Int(4), "deref".to_string()),
+                Stmt::Assignment(
+                    "ptr".to_string(),
+                    Expr::Prefix(PreOp::Ref, Box::new(Expr::Variable("five".to_string()))),
+                ),
+                Stmt::Assignment(
+                    "deref".to_string(),
+                    Expr::Prefix(PreOp::Deref, Box::new(Expr::Variable("ptr".to_string()))),
                 ),
                 Stmt::Return(Expr::Variable("d".to_string())),
             ])),

@@ -5,7 +5,7 @@ pub struct Program(pub Vec<Stmt>);
 
 #[derive(Debug, PartialEq)]
 pub enum Stmt {
-    Declare(u32, String),                                 // <size> <ident>
+    Declare(Size, String),                                // <size> <ident>
     Assignment(String, Expr),                             // <ident> <expr>
     Expression(Expr),                                     // <expr>
     Function(u32, String, Vec<(u32, String)>, Box<Stmt>), // <size> <ident> <args>* <body>
@@ -19,7 +19,7 @@ pub enum Expr {
     Literal(Literal),                   // <literal>
     Variable(String),                   // <ident>
     Infix(Box<Expr>, BinOp, Box<Expr>), // <expr> <binop> <expr>
-    Not(Box<Expr>),                     // ! <expr>
+    Prefix(PreOp, Box<Expr>),           // <preop> <expr>
     Call(Box<Expr>, Vec<Expr>),         // <expr> <expr>* == <pointer> <args>*
 }
 
@@ -27,6 +27,19 @@ pub enum Expr {
 pub enum Literal {
     Int(i64),
     Float(f64),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Size {
+    Int(u32),
+    Ptr,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum PreOp {
+    Deref,
+    Ref,
+    Not,
 }
 
 #[derive(Debug, PartialEq)]
@@ -66,7 +79,7 @@ impl From<&Token> for Precedence {
             Token::Modulo => Self::Product,
             Token::Asterix => Self::Product,
             Token::Equal => Self::Equals,
-            Token::Bang => Self::Prefix,
+            Token::Bang | Token::Comma | Token::Backtick => Self::Prefix,
             Token::Dollar => Self::Call,
             Token::Less => Self::Less,
             _ => Self::Lowest,

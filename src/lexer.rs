@@ -16,12 +16,15 @@ pub enum Token {
     Dash,          // -
     Slash,         // /
     Modulo,        // %
-    Asterix,       // *
+    Asterix,       // * times
     Equal,         // ==
     Bang,          // ! not at bit level, thus !8 = -9
     Xor,           // ^
     Or,            // |
-    And,           // &
+    And,           // & 'and'
+    Comma,         // , deref
+    Backtick,      // ` pointer
+    Ptr,           // P pointer type
     Less,          // < all comparison can be made with this and equal
 
     // could replace '} {', but must find a unique character to represent it
@@ -37,6 +40,7 @@ pub struct Lexer<'a> {
     reader: Peekable<Box<dyn Iterator<Item = char> + 'a>>,
 }
 
+// NOTE : we might replace some symbol by upper case after F
 impl<'a> Iterator for Lexer<'a> {
     type Item = Token;
     fn next(&mut self) -> Option<Token> {
@@ -124,6 +128,18 @@ impl<'a> Iterator for Lexer<'a> {
                 self.reader.next();
                 Some(Token::RBrace)
             }
+            ',' => {
+                self.reader.next();
+                Some(Token::Comma)
+            }
+            '`' => {
+                self.reader.next();
+                Some(Token::Backtick)
+            }
+            'P' => {
+                self.reader.next();
+                Some(Token::Ptr)
+            }
             ' ' | '\t' | '\n' | '\r' => {
                 self.reader.next();
                 self.next()
@@ -192,6 +208,10 @@ mod tests {
     } {
         d a - 5
     }
+    P ptr
+    4 deref
+    ptr ,five
+    deref `ptr
     ~ d
 }"#;
         let mut lexer = Lexer::new(input.chars());
@@ -233,6 +253,16 @@ mod tests {
             Token::Dash,
             Token::Int(5),
             Token::RBrace,
+            Token::Ptr,
+            Token::Ident("ptr".to_string()),
+            Token::Int(4),
+            Token::Ident("deref".to_string()),
+            Token::Ident("ptr".to_string()),
+            Token::Comma,
+            Token::Ident("five".to_string()),
+            Token::Ident("deref".to_string()),
+            Token::Backtick,
+            Token::Ident("ptr".to_string()),
             Token::Tilde,
             Token::Ident("d".to_string()),
             Token::RBrace,

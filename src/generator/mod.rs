@@ -2,10 +2,10 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::Module;
-use inkwell::{IntPredicate, OptimizationLevel};
+use inkwell::{AddressSpace, IntPredicate, OptimizationLevel};
 
 use crate::parser;
-use crate::parser::ast::{BinOp, Expr, Literal, Program, Stmt};
+use crate::parser::ast::{BinOp, Expr, Literal, PreOp, Program, Size, Stmt};
 
 mod symbol_table;
 
@@ -73,7 +73,7 @@ impl<'ctx> CodeGen<'ctx> {
 
     fn gen_stmt(&mut self, stmt: &Stmt) {
         match stmt {
-            Stmt::Declare(size, name) => self.gen_stmt_declare(*size, name),
+            Stmt::Declare(size, name) => self.gen_stmt_declare(size, name),
             Stmt::Assignment(name, value) => self.gen_stmt_assignment(name, value),
             Stmt::Expression(expr) => self.gen_stmt_expr(expr),
             Stmt::Function(size, name, args, body) => self.gen_stmt_func(*size, name, args, body),
@@ -85,17 +85,26 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    fn gen_stmt_declare(&mut self, size: u32, name: &str) {
-        // Arg is in byte, we need to convert it to bit
-        let width = self.context.custom_width_int_type(8 * size);
-        let ptr = self
-            .builder
-            .build_alloca(width, name)
-            .expect("declare alloca");
-        self.builder
-            .build_store(ptr, width.const_zero())
-            .expect("build store");
-        self.table.insert(name.to_string(), ptr, width.into());
+    fn gen_stmt_declare(&mut self, size: &Size, name: &str) {
+        // TODO : refactor that shit
+        match size {
+            Size::Int(s) => {
+                let t = self.context.custom_width_int_type(8 * s);
+                let ptr = self.builder.build_alloca(t, name).expect("declare alloca");
+                self.builder
+                    .build_store(ptr, t.const_zero())
+                    .expect("build store");
+                self.table.insert(name.to_string(), ptr, t.into());
+            }
+            Size::Ptr => {
+                let t = self.context.ptr_type(AddressSpace::default());
+                let ptr = self.builder.build_alloca(t, name).expect("declare alloca");
+                self.builder
+                    .build_store(ptr, t.const_zero())
+                    .expect("build store");
+                self.table.insert(name.to_string(), ptr, t.into());
+            }
+        };
     }
 
     fn gen_stmt_assignment(&self, name: &str, value: &Expr) {
@@ -104,7 +113,7 @@ impl<'ctx> CodeGen<'ctx> {
 
         if variable.r#type != value.get_type() {
             panic!(
-                "Type mismatch: {:?} {:?}",
+                "Type mismatch:\n{:#?}\n{:#?}",
                 value.get_type(),
                 variable.r#type
             );
@@ -232,7 +241,7 @@ impl<'ctx> CodeGen<'ctx> {
             },
             Expr::Variable(name) => self.gen_expr_variable(name),
             Expr::Infix(left, symbol, right) => self.gen_expr_infix(left, symbol, right),
-            Expr::Not(value) => self.gen_expr_not(value).into(),
+            Expr::Prefix(symbol, right) => self.gen_expr_prefix(symbol, right),
             Expr::Call(function, args) => self.gen_expr_call(function, args),
         }
     }
@@ -286,9 +295,39 @@ impl<'ctx> CodeGen<'ctx> {
         value.expect("operation infix").into()
     }
 
-    fn gen_expr_not(&self, value: &Expr) -> inkwell::values::IntValue<'ctx> {
-        let value = self.gen_expr(value).into_int_value();
-        self.builder.build_not(value, "nottmp").expect("not value")
+    fn gen_expr_prefix(
+        &self,
+        symbol: &PreOp,
+        expr: &Expr,
+    ) -> inkwell::values::BasicValueEnum<'ctx> {
+        match symbol {
+            PreOp::Deref => {
+                let expr = self.gen_expr(expr).into_pointer_value();
+                self.builder
+                    .build_ptr_to_int(expr, self.context.i64_type(), "dereftmp")
+                    .expect("dereftmp")
+                    .into()
+            }
+            // NOTE: compile at least
+            PreOp::Ref => {
+                let expr = self.gen_expr(expr).into_int_value();
+                self.builder
+                    .build_int_to_ptr(
+                        expr,
+                        self.context.ptr_type(AddressSpace::default()),
+                        "reftmp",
+                    )
+                    .expect("ref")
+                    .into()
+            }
+            PreOp::Not => {
+                let expr = self.gen_expr(expr).into_int_value();
+                self.builder
+                    .build_not(expr, "nottmp")
+                    .expect("not value")
+                    .into()
+            }
+        }
     }
 
     fn gen_expr_call(
@@ -298,7 +337,7 @@ impl<'ctx> CodeGen<'ctx> {
     ) -> inkwell::values::BasicValueEnum<'ctx> {
         let pointer = match function_expr {
             Expr::Variable(name) => self.module.get_function(name).expect("function not found"),
-            _ => todo!(),
+            _ => todo!(), // value is pointer
         };
 
         let compiled_args: Vec<inkwell::values::BasicMetadataValueEnum> =
@@ -315,6 +354,7 @@ impl<'ctx> CodeGen<'ctx> {
 }
 
 mod tests {
+
     use super::*;
     use crate::parser::ast::Program;
 
@@ -371,7 +411,7 @@ mod tests {
             "main".to_string(),
             vec![],
             Box::new(Stmt::BlockStatement(vec![
-                Stmt::Declare(8, "a".to_string()),
+                Stmt::Declare(Size::Int(8), "a".to_string()),
                 Stmt::Assignment(
                     "a".to_string(),
                     Expr::Infix(
@@ -393,7 +433,7 @@ mod tests {
             "main".to_string(),
             vec![],
             Box::new(Stmt::BlockStatement(vec![
-                Stmt::Declare(8, "a".to_string()),
+                Stmt::Declare(Size::Int(8), "a".to_string()),
                 Stmt::Assignment("a".to_string(), Expr::Literal(Literal::Int(69))),
                 Stmt::Return(Expr::Variable("a".to_string())),
             ])),
@@ -408,11 +448,36 @@ mod tests {
             "main".to_string(),
             vec![],
             Box::new(Stmt::BlockStatement(vec![
-                Stmt::Declare(8, "a".to_string()),
+                Stmt::Declare(Size::Int(8), "a".to_string()),
                 Stmt::Assignment("a".to_string(), Expr::Literal(Literal::Int(69))),
             ])),
         )]);
         test_program(&program, None);
+    }
+
+    #[test]
+    fn test_ref() {
+        let program = Program(vec![Stmt::Function(
+            8,
+            "main".to_string(),
+            vec![],
+            Box::new(Stmt::BlockStatement(vec![
+                Stmt::Declare(Size::Int(8), "one".to_string()),
+                Stmt::Assignment("one".to_string(), Expr::Literal(Literal::Int(1))),
+                Stmt::Declare(Size::Ptr, "ptr".to_string()),
+                Stmt::Assignment(
+                    "ptr".to_string(),
+                    Expr::Prefix(PreOp::Ref, Box::new(Expr::Variable("one".to_string()))),
+                ),
+                Stmt::Declare(Size::Int(8), "val".to_string()),
+                Stmt::Assignment(
+                    "val".to_string(),
+                    Expr::Prefix(PreOp::Deref, Box::new(Expr::Variable("ptr".to_string()))),
+                ),
+                Stmt::Return(Expr::Variable("val".to_string())),
+            ])),
+        )]);
+        test_program(&program, Some(1));
     }
 
     #[test]
@@ -422,7 +487,7 @@ mod tests {
             "main".to_string(),
             vec![],
             Box::new(Stmt::BlockStatement(vec![
-                Stmt::Declare(8, "x".to_string()),
+                Stmt::Declare(Size::Int(8), "x".to_string()),
                 Stmt::If(
                     Expr::Literal(Literal::Int(1)),
                     Box::new(Stmt::Assignment(
@@ -485,9 +550,9 @@ mod tests {
             "compute".to_string(),
             vec![(8, "a".to_string()), (8, "b".to_string())], // 2 and 3
             Box::new(Stmt::BlockStatement(vec![
-                Stmt::Declare(8, "five".to_string()),
-                Stmt::Declare(8, "c".to_string()),
-                Stmt::Declare(8, "d".to_string()),
+                Stmt::Declare(Size::Int(8), "five".to_string()),
+                Stmt::Declare(Size::Int(8), "c".to_string()),
+                Stmt::Declare(Size::Int(8), "d".to_string()),
                 Stmt::Assignment("five".to_string(), Expr::Literal(Literal::Int(5))),
                 Stmt::Assignment(
                     "c".to_string(), // 5
