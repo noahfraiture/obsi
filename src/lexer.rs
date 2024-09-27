@@ -24,7 +24,8 @@ pub enum Token {
     And,           // & 'and'
     Comma,         // , deref
     Backtick,      // ` pointer
-    Ptr,           // P pointer type
+    P,             // P pointer type
+    H,             // H heap allocation
     Less,          // < all comparison can be made with this and equal
 
     // could replace '} {', but must find a unique character to represent it
@@ -138,7 +139,11 @@ impl<'a> Iterator for Lexer<'a> {
             }
             'P' => {
                 self.reader.next();
-                Some(Token::Ptr)
+                Some(Token::P)
+            }
+            'H' => {
+                self.reader.next();
+                Some(Token::H)
             }
             ' ' | '\t' | '\n' | '\r' => {
                 self.reader.next();
@@ -253,7 +258,7 @@ mod tests {
             Token::Dash,
             Token::Int(5),
             Token::RBrace,
-            Token::Ptr,
+            Token::P,
             Token::Ident("ptr".to_string()),
             Token::Int(4),
             Token::Ident("deref".to_string()),
