@@ -1,0 +1,11 @@
+[package]
+name = "rust"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+jni = { version = "0.21.1", features = ["invocation", "default"] }
+
+# Needed to build libreader.so needed for the Java part
+[lib]
+crate-type = ["cdylib"]

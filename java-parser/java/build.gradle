@@ -1,0 +1,36 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'org.example'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    implementation 'com.github.javaparser:javaparser-symbol-solver-core:3.26.2'
+    implementation 'com.github.javaparser:javaparser-core:3.26.2'
+    implementation 'com.github.javaparser:javaparser-core-serialization:3.26.2'
+}
+
+application {
+  mainClass = 'org.example.Parser'
+}
+
+task fatJar(type: Jar) {
+    manifest {
+        attributes 'Main-Class': "${application.mainClass}"
+    }
+
+    archiveBaseName = "${rootProject.name}-all"
+    tasks.withType(Jar){
+        duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    }
+    from { configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
+
+    with jar
+}
