@@ -296,6 +296,16 @@ impl<'ctx> CodeGen<'ctx> {
             args.iter().map(|arg| self.gen_expr(arg).into()).collect();
 
         if let Some(pointer) = pointer {
+            // add block
+            let current_function = self
+                .builder_main
+                .get_insert_block()
+                .unwrap()
+                .get_parent()
+                .unwrap();
+            let block = self.context.append_basic_block(current_function, "call");
+            self.builder_main.position_at_end(block);
+
             self.builder_main
                 .build_call(pointer, &compiled_args, "calltmp")
                 .expect("call")
@@ -303,9 +313,18 @@ impl<'ctx> CodeGen<'ctx> {
                 .left()
                 .unwrap()
         } else {
+            // TODO : use builtin module
+            let current_function = self
+                .builder_main
+                .get_insert_block()
+                .unwrap()
+                .get_parent()
+                .unwrap();
+            let block = self.context.append_basic_block(current_function, "call");
+            self.builder_main.position_at_end(block);
+
             self.gen_builtin(name, compiled_args)
                 .expect("function not found")
-                .into()
         }
     }
 }

@@ -25,7 +25,6 @@ pub enum Token {
     Comma,         // , deref
     Backtick,      // ` pointer
     P,             // P pointer type
-    H,             // H heap allocation
     Less,          // < all comparison can be made with this and equal
 
     // could replace '} {', but must find a unique character to represent it
@@ -140,10 +139,6 @@ impl<'a> Iterator for Lexer<'a> {
             'P' => {
                 self.reader.next();
                 Some(Token::P)
-            }
-            'H' => {
-                self.reader.next();
-                Some(Token::H)
             }
             ' ' | '\t' | '\n' | '\r' => {
                 self.reader.next();

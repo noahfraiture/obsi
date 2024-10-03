@@ -35,7 +35,6 @@ impl<'a> Parser<'a> {
             | Token::Less => {
                 panic!("Unexpected token {:?}", self.lexer.peek())
             }
-            Token::H => todo!(),
         }
     }
 
@@ -185,7 +184,6 @@ impl<'a> Parser<'a> {
             Token::Or => todo!(),
             Token::And => todo!(),
             Token::P => todo!(),
-            Token::H => todo!(),
         }
     }
 
@@ -295,7 +293,6 @@ impl<'a> Parser<'a> {
             | Token::LBrace
             | Token::P
             | Token::RBrace => (left, false),
-            Token::H => todo!(),
         }
     }
 
