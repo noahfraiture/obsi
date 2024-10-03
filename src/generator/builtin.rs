@@ -4,8 +4,6 @@ use inkwell::AddressSpace;
 
 use std::collections::HashSet;
 
-use crate::parser::ast::Expr;
-
 use super::CodeGen;
 use super::GeneratorError;
 
@@ -26,7 +24,7 @@ impl<'ctx> CodeGen<'ctx> {
             .add_function("malloc", malloc_type, None);
     }
 
-    fn gen_malloc(&self, args: &'ctx [BasicMetadataValueEnum]) -> PointerValue {
+    fn gen_malloc(&self, args: Vec<BasicMetadataValueEnum<'ctx>>) -> PointerValue<'ctx> {
         if !self.builtins.contains(&BuiltinFunction::Malloc) {
             self.add_builtin();
         }
@@ -37,7 +35,7 @@ impl<'ctx> CodeGen<'ctx> {
             .expect("malloc not found after add_builtin");
 
         self.builder_builtin
-            .build_call(malloc_fn, args, "alloc_call")
+            .build_call(malloc_fn, &args, "alloc_call")
             .expect("call malloc")
             .try_as_basic_value()
             .left()
@@ -48,8 +46,8 @@ impl<'ctx> CodeGen<'ctx> {
     pub fn gen_builtin(
         &self,
         name: &str,
-        args: &'ctx [BasicMetadataValueEnum],
-    ) -> Result<PointerValue, GeneratorError> {
+        args: Vec<BasicMetadataValueEnum<'ctx>>,
+    ) -> Result<PointerValue<'ctx>, GeneratorError> {
         match name {
             "malloc" => {
                 if args.len() == 1 && args[0].is_int_value() {

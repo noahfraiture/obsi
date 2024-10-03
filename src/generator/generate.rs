@@ -292,7 +292,7 @@ impl<'ctx> CodeGen<'ctx> {
         };
         let pointer = self.module_main.get_function(name);
 
-        let compiled_args: Vec<inkwell::values::BasicMetadataValueEnum> =
+        let compiled_args: Vec<inkwell::values::BasicMetadataValueEnum<'ctx>> =
             args.iter().map(|arg| self.gen_expr(arg).into()).collect();
 
         if let Some(pointer) = pointer {
@@ -303,7 +303,7 @@ impl<'ctx> CodeGen<'ctx> {
                 .left()
                 .unwrap()
         } else {
-            self.gen_builtin(name, &compiled_args)
+            self.gen_builtin(name, compiled_args)
                 .expect("function not found")
                 .into()
         }
