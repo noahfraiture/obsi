@@ -272,6 +272,23 @@ mod tests {
     }
 
     #[test]
+    fn test_free() {
+        let program = Program(vec![Stmt::Function(
+            0,
+            "main".to_string(),
+            vec![],
+            Box::new(Stmt::BlockStatement(vec![Stmt::Expression(Expr::Call(
+                Box::new(Expr::Variable("free".to_string())),
+                vec![Expr::Call(
+                    Box::new(Expr::Variable("malloc".to_string())),
+                    vec![Expr::Literal(Literal::Int(8))],
+                )],
+            ))])),
+        )]);
+        test_program(&program, None);
+    }
+
+    #[test]
     fn test_malloc() {
         let program = Program(vec![Stmt::Function(
             0,

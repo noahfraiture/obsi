@@ -292,6 +292,15 @@ impl<'ctx> CodeGen<'ctx> {
         };
         let pointer = self.module_main.get_function(name);
 
+        let current_function = self
+            .builder_main
+            .get_insert_block()
+            .unwrap()
+            .get_parent()
+            .unwrap();
+        let block = self.context.append_basic_block(current_function, "call");
+        self.builder_main.position_at_end(block);
+
         let compiled_args: Vec<inkwell::values::BasicMetadataValueEnum<'ctx>> =
             args.iter().map(|arg| self.gen_expr(arg).into()).collect();
 
@@ -303,9 +312,9 @@ impl<'ctx> CodeGen<'ctx> {
                 .left()
                 .unwrap()
         } else {
+            // TODO : use builtin module
             self.gen_builtin(name, compiled_args)
                 .expect("function not found")
-                .into()
         }
     }
 }

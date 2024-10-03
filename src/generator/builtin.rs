@@ -1,6 +1,6 @@
 use inkwell::values::BasicMetadataValueEnum;
+use inkwell::values::BasicValueEnum;
 use inkwell::values::PointerValue;
-use inkwell::AddressSpace;
 
 use std::collections::HashSet;
 
@@ -8,50 +8,52 @@ use super::CodeGen;
 use super::GeneratorError;
 
 #[derive(PartialEq, Eq, Hash)]
-pub enum BuiltinFunction {
-    Malloc,
-}
+pub enum BuiltinFunction {}
 
 pub type BuiltinTable = HashSet<BuiltinFunction>;
 
 impl<'ctx> CodeGen<'ctx> {
-    fn add_builtin(&self) {
-        let arg_type = self.context.i64_type();
-        let ret_type = self.context.ptr_type(AddressSpace::default());
-
-        let malloc_type = ret_type.fn_type(&[arg_type.into()], false);
-        self.module_builtin
-            .add_function("malloc", malloc_type, None);
-    }
+    fn add_builtin(&self) {}
 
     fn gen_malloc(&self, args: Vec<BasicMetadataValueEnum<'ctx>>) -> PointerValue<'ctx> {
-        if !self.builtins.contains(&BuiltinFunction::Malloc) {
-            self.add_builtin();
-        }
+        let malloc = self
+            .builder_main
+            .build_array_malloc(
+                self.context.custom_width_int_type(8),
+                args[0].into_int_value(),
+                "call malloc",
+            )
+            .expect("call malloc");
+        println!("malloc value : {:?}", malloc);
+        malloc
+    }
 
-        let malloc_fn = self
-            .module_builtin
-            .get_function("malloc")
-            .expect("malloc not found after add_builtin");
-
-        self.builder_builtin
-            .build_call(malloc_fn, &args, "alloc_call")
-            .expect("call malloc")
-            .try_as_basic_value()
-            .left()
-            .unwrap()
-            .into_pointer_value()
+    fn gen_free(&self, args: Vec<BasicMetadataValueEnum<'ctx>>) {
+        let free = self
+            .builder_main
+            .build_free(args[0].into_pointer_value())
+            .expect("call free");
+        println!("free value : {:?}", free);
     }
 
     pub fn gen_builtin(
         &self,
         name: &str,
         args: Vec<BasicMetadataValueEnum<'ctx>>,
-    ) -> Result<PointerValue<'ctx>, GeneratorError> {
+    ) -> Result<BasicValueEnum<'ctx>, GeneratorError> {
         match name {
             "malloc" => {
                 if args.len() == 1 && args[0].is_int_value() {
-                    Ok(self.gen_malloc(args))
+                    Ok(self.gen_malloc(args).into())
+                } else {
+                    Err(GeneratorError)
+                }
+            }
+            "free" => {
+                if args.len() == 1 && args[0].is_pointer_value() {
+                    self.gen_free(args);
+                    // NOTE : might be pretty stupid
+                    Ok(self.context.i8_type().const_int(0, false).into())
                 } else {
                     Err(GeneratorError)
                 }
