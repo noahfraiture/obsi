@@ -313,6 +313,10 @@ mod tests {
             "compute".to_string(),
             vec![(8, "a".to_string()), (8, "b".to_string())], // 2 and 3
             Box::new(Stmt::BlockStatement(vec![
+                Stmt::Expression(Expr::Call(
+                    Box::new(Expr::Variable("malloc".to_string())),
+                    vec![Expr::Literal(Literal::Int(8))],
+                )),
                 Stmt::Declare(Size::Int(8), "five".to_string()),
                 Stmt::Declare(Size::Int(8), "c".to_string()),
                 Stmt::Declare(Size::Int(8), "d".to_string()),

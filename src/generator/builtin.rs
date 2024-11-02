@@ -1,3 +1,4 @@
+use inkwell::types::AsTypeRef;
 use inkwell::values::BasicMetadataValueEnum;
 use inkwell::values::BasicValueEnum;
 use inkwell::values::PointerValue;
@@ -16,13 +17,13 @@ impl<'ctx> CodeGen<'ctx> {
     fn add_builtin(&self) {}
 
     fn gen_malloc(&self, args: Vec<BasicMetadataValueEnum<'ctx>>) -> PointerValue<'ctx> {
+        // FIX : generate complex instruction
+        // even with simpler instruction
+        // the 'ptr null' may be the problem
+        //  %"call malloc" = tail call ptr @malloc(i32 mul (i32 ptrtoint (ptr getelementptr (i8, ptr null, i32 1) to i32), i32 8))
         let malloc = self
             .builder_main
-            .build_array_malloc(
-                self.context.custom_width_int_type(8),
-                args[0].into_int_value(),
-                "call malloc",
-            )
+            .build_malloc(self.context.custom_width_int_type(8), "malloc")
             .expect("call malloc");
         println!("malloc value : {:?}", malloc);
         malloc
